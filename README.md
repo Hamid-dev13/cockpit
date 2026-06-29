@@ -119,13 +119,33 @@ make config        # validation des fichiers compose
 
 Le fichier `.env.local` (cle Mistral et `AUTH_SECRET`) doit exister : il est injecte dans les conteneurs.
 
+## Deploiement (production)
+
+L'application se deploie avec le build pack **Dockerfile** (le dernier stage `runner`). Exemple teste sur Coolify :
+
+- Build pack : `Dockerfile` ; port expose : `3000`.
+- Stockage persistant : monter un volume sur `/data` (sinon la base SQLite est perdue a chaque deploiement).
+- Variables d'environnement (runtime, definies dans le panneau, pas dans un fichier) :
+
+  ```
+  MISTRAL_API_KEY=...
+  AUTH_SECRET=...                  # openssl rand -hex 32, valeur stable
+  DATABASE_URL=file:/data/prod.db  # pointe vers le volume persistant
+  ```
+
+- Ne pas definir `ALLOW_REGISTRATION` : les inscriptions restent fermees.
+- Servir le site en HTTPS (les cookies de session sont "secure"). Avec un nom de domaine, le certificat Let's Encrypt est automatique ; les domaines partages (nip.io, sslip.io) sont souvent rate-limites par Let's Encrypt.
+
+Au demarrage, le conteneur applique le schema (`prisma db push`) puis lance le serveur. Un push sur `main` declenche un nouveau build (auto-deploy si active).
+
 ## Routes API
 
 Toutes les routes ci-dessous, hormis `register` et `login`, exigent une session valide.
 
 | Methode | Route                     | Role                                              |
 | ------- | ------------------------- | ------------------------------------------------- |
-| POST    | `/api/auth/register`      | Inscription (cree le compte et ouvre la session)  |
+| POST    | `/api/auth/register`      | Inscription (uniquement si `ALLOW_REGISTRATION=true`, sinon 403) |
+| GET     | `/api/auth/config`        | Indique si les inscriptions sont ouvertes         |
 | POST    | `/api/auth/login`         | Connexion                                         |
 | POST    | `/api/auth/logout`        | Deconnexion (revoque le refresh token)            |
 | POST    | `/api/auth/refresh`       | Rotation du refresh token, nouvel access token    |
@@ -153,6 +173,7 @@ Toutes les routes ci-dessous, hormis `register` et `login`, exigent une session 
 - Access token JWT de courte duree (15 minutes) et refresh token rotatif (30 jours), stocke hashe en base et revocable a la deconnexion.
 - Tokens transmis en cookies httpOnly ; le client rafraichit automatiquement la session a l'expiration.
 - Les routes de donnees exigent une session : chaque utilisateur n'accede qu'a ses propres candidatures.
+- Inscriptions fermees par defaut : sans `ALLOW_REGISTRATION=true`, l'onglet d'inscription est masque et la route `/api/auth/register` renvoie 403. Les comptes existants se connectent normalement.
 - En production, definir un `AUTH_SECRET` fort et stable, et servir le site en HTTPS (cookies securises).
 
 ## Limitations connues
