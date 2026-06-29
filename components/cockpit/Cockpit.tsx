@@ -15,7 +15,7 @@ import { PasteModal } from './PasteModal'
 import { ManualModal } from './ManualModal'
 
 export function Cockpit() {
-  const { cards, loading, toast, setStatus, cycle, addNote, patch, createFromExtract, createManual } = useCandidatures()
+  const { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual } = useCandidatures()
 
   const [mounted, setMounted] = useState(false)
   const [fStatus, setFStatus] = useState('all')
@@ -72,9 +72,7 @@ export function Cockpit() {
                 Chargement…
               </div>
             ) : list.length ? (
-              list.map((c) => (
-                <CandidatureRow key={c.id} c={c} onOpen={() => setPanelId(c.id)} onCycle={() => cycle(c.id)} />
-              ))
+              list.map((c) => <CandidatureRow key={c.id} c={c} onOpen={() => setPanelId(c.id)} />)
             ) : (
               <div className="p-10 text-center text-[var(--muted)] text-sm">Aucune candidature ici.</div>
             )}

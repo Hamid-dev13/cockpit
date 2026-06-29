@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Card, Status } from '@/lib/types'
-import { ORDER, STATUS } from '@/lib/status'
+import { STATUS } from '@/lib/status'
 import { listCards, createCard, patchCard, deleteCard } from '@/lib/api'
 
 /** État + logique métier des candidatures (chargement, CRUD optimiste, toasts). */
@@ -59,15 +59,6 @@ export function useCandidatures() {
       if (c) flash(`${c.company} → ${STATUS[status].label}`)
     },
     [patch, flash],
-  )
-
-  const cycle = useCallback(
-    (id: number) => {
-      const c = cardsRef.current.find((x) => x.id === id)
-      if (!c) return
-      setStatus(id, ORDER[(ORDER.indexOf(c.status) + 1) % ORDER.length])
-    },
-    [setStatus],
   )
 
   const addNote = useCallback(
@@ -129,5 +120,5 @@ export function useCandidatures() {
     [flash, load],
   )
 
-  return { cards, loading, toast, setStatus, cycle, addNote, patch, createFromExtract, createManual, remove }
+  return { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual, remove }
 }

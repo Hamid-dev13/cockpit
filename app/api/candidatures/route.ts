@@ -1,36 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma, serialize } from '@/lib/db'
-import { SEED } from '@/lib/seed'
 
 export const runtime = 'nodejs'
-const DAY = 86400000
 
 export async function GET() {
-  // Seed automatique au premier lancement (BDD vide).
-  const count = await prisma.candidature.count()
-  if (count === 0) {
-    for (const s of SEED) {
-      await prisma.candidature.create({
-        data: {
-          company: s.company,
-          role: s.role,
-          status: s.status,
-          kind: s.kind,
-          channel: s.channel,
-          salary: s.salary,
-          stack: s.stack.join(','),
-          location: s.location,
-          url: s.url,
-          description: s.description,
-          last: new Date(Date.now() - s.lastDaysAgo * DAY),
-          comments: {
-            create: s.comments.map((c) => ({ txt: c.txt, createdAt: new Date(Date.now() - c.daysAgo * DAY) })),
-          },
-        },
-      })
-    }
-  }
-
   const cards = await prisma.candidature.findMany({ include: { comments: true }, orderBy: { id: 'asc' } })
   return NextResponse.json(cards.map(serialize))
 }

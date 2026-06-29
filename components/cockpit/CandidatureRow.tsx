@@ -6,7 +6,7 @@ import { STATUS, KIND, CHANNEL } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
 import { channelIcon } from './icons'
 
-export function CandidatureRow({ c, onOpen, onCycle }: { c: Card; onOpen: () => void; onCycle: () => void }) {
+export function CandidatureRow({ c, onOpen }: { c: Card; onOpen: () => void }) {
   const st = STATUS[c.status]
   const m = momentum(c)
   const ChIcon = channelIcon(c.channel)
@@ -16,18 +16,14 @@ export function CandidatureRow({ c, onOpen, onCycle }: { c: Card; onOpen: () => 
       onClick={onOpen}
       className="group flex items-center gap-3 px-4 py-3 border-b last:border-0 cursor-pointer hover:bg-[var(--surface-2)] transition"
     >
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onCycle()
-        }}
-        title="Changer le statut"
+      <div
         className="flex items-center gap-2 shrink-0 w-32 text-sm font-medium rounded-md px-2 py-1"
         style={{ background: st.tint, color: st.dot }}
+        title={`Statut : ${st.label}`}
       >
         <span className="w-2 h-2 rounded-full" style={{ background: st.dot }} />
         {st.label}
-      </button>
+      </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
