@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Plus, Bot, Sun, Moon, Sparkles, PenLine } from 'lucide-react'
+import { Plus, Bot, Sun, Moon, Sparkles, PenLine, LogOut } from 'lucide-react'
+import { useAuth } from '@/hooks/useAuth'
 
 export function Header({
   onCopilot,
@@ -15,6 +16,7 @@ export function Header({
 }) {
   const [addMenu, setAddMenu] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
+  const { user, logout } = useAuth()
 
   return (
     <header className="flex items-center gap-3 px-4 sm:px-6 h-16 border-b shrink-0">
@@ -40,12 +42,26 @@ export function Header({
 
       <div className="flex-1" />
 
+      {user && (
+        <span className="hidden sm:block text-sm text-[var(--muted)] mr-1">
+          Salut, <span className="font-medium text-[var(--fg)]">{user.firstName}</span>
+        </span>
+      )}
+
       <button
         onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}
         className="grid place-items-center w-9 h-9 rounded-lg border bg-[var(--surface)] hover:bg-[var(--surface-2)] transition"
         title="Changer de thème"
       >
         {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+
+      <button
+        onClick={logout}
+        className="grid place-items-center w-9 h-9 rounded-lg border bg-[var(--surface)] hover:bg-[var(--surface-2)] transition"
+        title="Se déconnecter"
+      >
+        <LogOut className="w-4 h-4" />
       </button>
 
       <div className="relative">

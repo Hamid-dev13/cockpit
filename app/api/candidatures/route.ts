@@ -1,20 +1,32 @@
 import { NextResponse } from 'next/server'
 import { prisma, serialize } from '@/lib/db'
+import { getAuth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const cards = await prisma.candidature.findMany({ include: { comments: true }, orderBy: { id: 'asc' } })
+  const auth = await getAuth()
+  if (!auth) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+
+  const cards = await prisma.candidature.findMany({
+    where: { userId: auth.id },
+    include: { comments: true },
+    orderBy: { id: 'asc' },
+  })
   return NextResponse.json(cards.map(serialize))
 }
 
 export async function POST(req: Request) {
+  const auth = await getAuth()
+  if (!auth) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+
   const b = await req.json()
   if (!b.company || !String(b.company).trim()) {
     return NextResponse.json({ error: "Le nom de l'entreprise est requis." }, { status: 400 })
   }
   const card = await prisma.candidature.create({
     data: {
+      userId: auth.id,
       company: String(b.company).trim(),
       role: b.role?.trim() || (b.kind === 'spontaneous' ? 'Candidature spontanée' : 'Poste'),
       status: b.status || 'wishlist',

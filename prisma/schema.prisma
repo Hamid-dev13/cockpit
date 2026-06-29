@@ -22,6 +22,28 @@ model Candidature {
   last      DateTime  @default(now())
   createdAt DateTime  @default(now())
   comments  Comment[]
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    Int
+}
+
+model User {
+  id            Int            @id @default(autoincrement())
+  email         String         @unique
+  firstName     String
+  lastName      String
+  passwordHash  String
+  createdAt     DateTime       @default(now())
+  candidatures  Candidature[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }
 
 model Comment {

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { mistral } from '@/lib/mistral'
+import { getAuth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
@@ -42,6 +43,9 @@ async function fetchPageText(url: string): Promise<string | null> {
 }
 
 export async function POST(req: Request) {
+  const auth = await getAuth()
+  if (!auth) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
+
   let body: any
   try {
     body = await req.json()

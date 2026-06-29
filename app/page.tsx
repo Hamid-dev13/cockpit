@@ -1,5 +1,5 @@
-import { Cockpit } from '@/components/cockpit'
+import { AuthGate } from '@/components/auth/AuthGate'
 
 export default function Page() {
-  return <Cockpit />
+  return <AuthGate />
 }
