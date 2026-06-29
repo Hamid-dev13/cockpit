@@ -5,6 +5,10 @@ import { hashPassword, signAccessToken, issueRefreshToken, setAuthCookies, publi
 export const runtime = 'nodejs'
 
 export async function POST(req: Request) {
+  if (process.env.ALLOW_REGISTRATION !== 'true') {
+    return NextResponse.json({ error: 'Les inscriptions sont fermées.' }, { status: 403 })
+  }
+
   const { email, password, firstName, lastName } = await req.json().catch(() => ({}))
   if (!email || !password || !firstName || !lastName) {
     return NextResponse.json({ error: 'Tous les champs sont requis.' }, { status: 400 })

@@ -89,6 +89,7 @@ npm run dev                       # http://localhost:3000
 | `MISTRAL_MODEL`    | `.env.local` | Optionnel. Defaut : `mistral-small-latest`.             |
 | `DATABASE_URL`     | `.env`       | Chemin de la base SQLite. Defaut : `file:./dev.db`.     |
 | `AUTH_SECRET`      | `.env.local` | Secret de signature des JWT. Generer : `openssl rand -hex 32`. |
+| `ALLOW_REGISTRATION` | runtime    | `true` pour autoriser la creation de comptes. Absent = inscriptions fermees. |
 
 La cle Mistral n'est jamais exposee au navigateur : elle est lue cote serveur dans `app/api/ai/route.ts`. En production, `AUTH_SECRET` doit etre fort et stable (le changer invalide toutes les sessions).
 

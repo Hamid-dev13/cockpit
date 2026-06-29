@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Loader2, LogIn, UserPlus } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -9,12 +9,25 @@ type Mode = 'login' | 'register'
 export function AuthScreen() {
   const { login, register } = useAuth()
   const [mode, setMode] = useState<Mode>('login')
+  const [allowRegistration, setAllowRegistration] = useState(false)
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+
+  useEffect(() => {
+    fetch('/api/auth/config')
+      .then((r) => r.json())
+      .then((d) => setAllowRegistration(!!d.allowRegistration))
+      .catch(() => {})
+  }, [])
+
+  // Si l'inscription est fermee, on force le mode connexion.
+  useEffect(() => {
+    if (!allowRegistration) setMode('login')
+  }, [allowRegistration])
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,26 +62,30 @@ export function AuthScreen() {
         </div>
 
         <div className="glass border rounded-2xl ring-glow p-6">
-          <div className="flex gap-1 p-1 mb-5 rounded-lg bg-[var(--surface-2)] border">
-            <button
-              onClick={() => {
-                setMode('login')
-                setErr('')
-              }}
-              className={`flex-1 text-sm rounded-md h-8 transition ${mode === 'login' ? 'bg-[var(--surface)] font-medium' : 'text-[var(--muted)]'}`}
-            >
-              Connexion
-            </button>
-            <button
-              onClick={() => {
-                setMode('register')
-                setErr('')
-              }}
-              className={`flex-1 text-sm rounded-md h-8 transition ${mode === 'register' ? 'bg-[var(--surface)] font-medium' : 'text-[var(--muted)]'}`}
-            >
-              Inscription
-            </button>
-          </div>
+          {allowRegistration ? (
+            <div className="flex gap-1 p-1 mb-5 rounded-lg bg-[var(--surface-2)] border">
+              <button
+                onClick={() => {
+                  setMode('login')
+                  setErr('')
+                }}
+                className={`flex-1 text-sm rounded-md h-8 transition ${mode === 'login' ? 'bg-[var(--surface)] font-medium' : 'text-[var(--muted)]'}`}
+              >
+                Connexion
+              </button>
+              <button
+                onClick={() => {
+                  setMode('register')
+                  setErr('')
+                }}
+                className={`flex-1 text-sm rounded-md h-8 transition ${mode === 'register' ? 'bg-[var(--surface)] font-medium' : 'text-[var(--muted)]'}`}
+              >
+                Inscription
+              </button>
+            </div>
+          ) : (
+            <div className="text-sm font-medium mb-5">Connexion</div>
+          )}
 
           <form onSubmit={submit} className="space-y-3">
             {mode === 'register' && (
