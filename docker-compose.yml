@@ -1,0 +1,23 @@
+# Environnement de DÉVELOPPEMENT (hot-reload).
+#   make up        → démarre
+#   make down      → arrête
+services:
+  app:
+    build:
+      context: .
+      target: dev
+    container_name: cockpit-dev
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:/data/dev.db"
+      NODE_ENV: development
+      NEXT_TELEMETRY_DISABLED: "1"
+    env_file:
+      - .env.local            # MISTRAL_API_KEY
+    volumes:
+      - .:/app                # code source (hot-reload)
+      - /app/node_modules     # node_modules de l'image (non masqués par le bind)
+      - /app/.next            # cache de build de l'image
+      - ./data:/data          # bind-mount SQLite → persiste sur l'hôte
+    command: sh -c "npx prisma generate && npx prisma db push && npm run dev"

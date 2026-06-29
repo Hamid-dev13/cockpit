@@ -1,0 +1,20 @@
+# Environnement de PRODUCTION (build optimisé, next start).
+#   make prod-up   → build + démarre en arrière-plan
+#   make prod-down → arrête
+services:
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: cockpit-prod
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:/data/prod.db"
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+    env_file:
+      - .env.local            # MISTRAL_API_KEY
+    volumes:
+      - ./data:/data          # bind-mount SQLite → persiste sur l'hôte
+    restart: unless-stopped
