@@ -2,11 +2,21 @@
 
 import { useState } from 'react'
 import { PenLine, Plus, Loader2 } from 'lucide-react'
-import type { Channel } from '@/lib/types'
-import { CHANNEL } from '@/lib/status'
+import type { Channel, Kind } from '@/lib/types'
+import { CHANNEL, KIND } from '@/lib/status'
 
-export function ManualModal({ onClose, onCreate }: { onClose: () => void; onCreate: (body: Record<string, unknown>) => Promise<void> }) {
-  const [kind, setKind] = useState('spontaneous')
+const KIND_ORDER: Kind[] = ['offer', 'spontaneous', 'network']
+
+export function ManualModal({
+  onClose,
+  onCreate,
+  initialKind = 'spontaneous',
+}: {
+  onClose: () => void
+  onCreate: (body: Record<string, unknown>) => Promise<void>
+  initialKind?: Kind
+}) {
+  const [kind, setKind] = useState<Kind>(initialKind)
   const [channel, setChannel] = useState<Channel>('email')
   const [company, setCompany] = useState('')
   const [role, setRole] = useState('')
@@ -60,15 +70,31 @@ export function ManualModal({ onClose, onCreate }: { onClose: () => void; onCrea
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs text-[var(--muted)]">
+          <div className="col-span-2 text-xs text-[var(--muted)]">
             Nature
-            <select value={kind} onChange={(e) => setKind(e.target.value)} className={field + ' mt-1'}>
-              <option value="offer">Offre</option>
-              <option value="spontaneous">Spontanée</option>
-              <option value="network">Réseau / Référence</option>
-            </select>
-          </label>
-          <label className="text-xs text-[var(--muted)]">
+            <div className="mt-1 grid grid-cols-3 gap-1.5">
+              {KIND_ORDER.map((k) => {
+                const active = kind === k
+                return (
+                  <button
+                    key={k}
+                    type="button"
+                    onClick={() => setKind(k)}
+                    aria-pressed={active}
+                    className="h-9 rounded-lg border text-sm font-medium transition"
+                    style={
+                      active
+                        ? { borderColor: 'var(--accent)', background: 'color-mix(in srgb,var(--accent) 12%,transparent)', color: 'var(--fg)' }
+                        : { background: 'var(--surface)' }
+                    }
+                  >
+                    {KIND[k].label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+          <label className="text-xs text-[var(--muted)] col-span-2">
             Canal
             <select value={channel} onChange={(e) => setChannel(e.target.value as Channel)} className={field + ' mt-1'}>
               {(Object.keys(CHANNEL) as Channel[]).map((ch) => (
