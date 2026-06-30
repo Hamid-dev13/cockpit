@@ -92,12 +92,12 @@ export function Copilot({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/50 grid place-items-start justify-center pt-28 animate-fadein"
+      className="fixed inset-0 z-50 bg-black/50 grid place-items-center animate-fadein"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
-      <div className="w-full max-w-xl mx-4 glass border rounded-2xl ring-glow overflow-hidden animate-fadein">
+      <div className="w-full max-w-2xl mx-4 glass border rounded-2xl overflow-hidden animate-fadein">
         <div className="flex items-center gap-3 px-4 h-14 border-b">
           <Bot className="w-5 h-5" style={{ color: 'var(--accent)' }} />
           <input

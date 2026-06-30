@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Plus, Bot, Sun, Moon, Sparkles, PenLine, Send, LogOut } from 'lucide-react'
+import { Plus, Bot, Sun, Moon, Sparkles, PenLine, Send, LogOut, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Header({
@@ -15,6 +15,7 @@ export function Header({
   onPaste: () => void
   onManual: () => void
   onSpontaneous: () => void
+  onSettings: () => void
 }) {
   const [addMenu, setAddMenu] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
@@ -56,6 +57,14 @@ export function Header({
         title="Changer de thème"
       >
         {resolvedTheme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+      </button>
+
+      <button
+        onClick={onSettings}
+        className="grid place-items-center w-9 h-9 rounded-lg border bg-[var(--surface)] hover:bg-[var(--surface-2)] transition"
+        title="Paramètres"
+      >
+        <Settings className="w-4 h-4" />
       </button>
 
       <button
