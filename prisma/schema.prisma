@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -15,7 +15,7 @@ model Candidature {
   kind      String    @default("offer") // offer | spontaneous | network
   channel   String    @default("email") // email | phone | form | linkedin | other
   salary    String    @default("—")
-  stack     String    @default("") // CSV: SQLite n'a pas de type tableau
+  stack     String    @default("") // liste de technos stockee en CSV
   location  String    @default("—")
   url       String    @default("")
   description String  @default("")

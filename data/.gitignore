@@ -1,3 +1,0 @@
-# Le dossier data/ est suivi, mais son contenu (bases SQLite) est ignoré.
-*
-!.gitignore

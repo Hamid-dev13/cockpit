@@ -22,7 +22,7 @@ Le principe : ce n'est pas un tableur de plus. L'application met en avant ce qu'
 - Next.js 14 (App Router) et React 18
 - TypeScript
 - Tailwind CSS
-- Prisma ORM avec SQLite
+- Prisma ORM avec PostgreSQL
 - API Mistral pour les fonctionnalites IA
 - lucide-react (icones), next-themes (theme clair/sombre)
 - Authentification maison : jose (JWT) et bcryptjs (hash des mots de passe)
@@ -69,15 +69,18 @@ Principe : `lib/` est pur (sans React), les hooks portent la logique d'etat, et 
 ## Prerequis
 
 - Node.js 20 ou superieur
+- Une base PostgreSQL (ou Docker pour en lancer une, voir la section Docker)
 - Une cle API Mistral (https://console.mistral.ai)
-- Docker et Docker Compose (optionnel, pour les environnements conteneurises)
+- Docker et Docker Compose (pour les environnements conteneurises)
 
 ## Demarrage en local
 
 ```bash
 npm install
-cp .env.example .env.local        # renseigner MISTRAL_API_KEY et AUTH_SECRET
-npx prisma db push                # cree la base SQLite locale
+cp .env.example .env.local        # secrets : MISTRAL_API_KEY, AUTH_SECRET
+# Postgres requis. Le plus simple : "make up" lance l'app + Postgres ensemble.
+# Sinon, fournis un Postgres, mets sa DATABASE_URL dans .env, puis :
+npx prisma db push                # cree les tables dans Postgres
 npm run dev                       # http://localhost:3000
 ```
 
@@ -87,7 +90,7 @@ npm run dev                       # http://localhost:3000
 | ------------------ | ------------ | ------------------------------------------------------- |
 | `MISTRAL_API_KEY`  | `.env.local` | Cle API Mistral. Lue uniquement cote serveur.           |
 | `MISTRAL_MODEL`    | `.env.local` | Optionnel. Defaut : `mistral-small-latest`.             |
-| `DATABASE_URL`     | `.env`       | Chemin de la base SQLite. Defaut : `file:./dev.db`.     |
+| `DATABASE_URL`     | `.env`       | Connexion PostgreSQL : `postgresql://user:pass@host:5432/db`. |
 | `AUTH_SECRET`      | `.env.local` | Secret de signature des JWT. Generer : `openssl rand -hex 32`. |
 | `ALLOW_REGISTRATION` | runtime    | `true` pour autoriser la creation de comptes. Absent = inscriptions fermees. |
 
@@ -95,7 +98,7 @@ La cle Mistral n'est jamais exposee au navigateur : elle est lue cote serveur da
 
 ## Base de donnees
 
-Prisma avec SQLite. La base demarre vide : chaque utilisateur cree ses propres candidatures.
+Prisma avec PostgreSQL. La base demarre vide : chaque utilisateur cree ses propres candidatures.
 
 ```bash
 npx prisma db push        # synchronise le schema avec la base
@@ -104,7 +107,7 @@ npx prisma studio         # interface d'exploration de la base
 
 ## Docker
 
-Deux environnements sont fournis, pilotes par un Makefile. La base SQLite est montee via un bind-mount dans `./data`, elle persiste donc hors du conteneur.
+Deux environnements sont fournis, pilotes par un Makefile. Chacun inclut un service PostgreSQL (donnees persistees dans le volume Docker `cockpit-pgdata`).
 
 ```bash
 make help          # liste des commandes
@@ -124,13 +127,13 @@ Le fichier `.env.local` (cle Mistral et `AUTH_SECRET`) doit exister : il est inj
 L'application se deploie avec le build pack **Dockerfile** (le dernier stage `runner`). Exemple teste sur Coolify :
 
 - Build pack : `Dockerfile` ; port expose : `3000`.
-- Stockage persistant : monter un volume sur `/data` (sinon la base SQLite est perdue a chaque deploiement).
+- Base de donnees : creer une base **PostgreSQL managee** dans Coolify (+ New -> Database -> PostgreSQL). Aucun volume a gerer cote application.
 - Variables d'environnement (runtime, definies dans le panneau, pas dans un fichier) :
 
   ```
   MISTRAL_API_KEY=...
-  AUTH_SECRET=...                  # openssl rand -hex 32, valeur stable
-  DATABASE_URL=file:/data/prod.db  # pointe vers le volume persistant
+  AUTH_SECRET=...                # openssl rand -hex 32, valeur stable
+  DATABASE_URL=postgresql://...  # connection string de la base Postgres Coolify
   ```
 
 - Ne pas definir `ALLOW_REGISTRATION` : les inscriptions restent fermees.
@@ -179,4 +182,4 @@ Toutes les routes ci-dessous, hormis `register` et `login`, exigent une session 
 ## Limitations connues
 
 - L'extraction depuis une URL fonctionne sur les pages publiques accessibles. Les sites qui bloquent les robots (Indeed, LinkedIn, Workday) ne sont pas lisibles : il faut alors coller le texte de l'annonce.
-- Le stockage est local (SQLite), adapte a un deploiement mono-instance.
+- La base PostgreSQL doit etre accessible par l'application (instance managee Coolify, ou conteneurisee via le compose).

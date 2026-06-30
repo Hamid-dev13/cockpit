@@ -1,23 +1,42 @@
-# Environnement de DÉVELOPPEMENT (hot-reload).
-#   make up        → démarre
-#   make down      → arrête
+# Environnement de DEVELOPPEMENT (hot-reload) avec Postgres inclus.
+#   make up        -> demarre
+#   make down      -> arrete
 services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: cockpit
+      POSTGRES_PASSWORD: cockpit
+      POSTGRES_DB: cockpit
+    volumes:
+      - cockpit-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U cockpit']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   app:
     build:
       context: .
       target: dev
     container_name: cockpit-dev
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
-      - "3000:3000"
+      - '3000:3000'
     environment:
-      DATABASE_URL: "file:/data/dev.db"
+      DATABASE_URL: 'postgresql://cockpit:cockpit@db:5432/cockpit?schema=public'
       NODE_ENV: development
-      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_TELEMETRY_DISABLED: '1'
     env_file:
-      - .env.local            # MISTRAL_API_KEY
+      - .env.local # MISTRAL_API_KEY, AUTH_SECRET, ALLOW_REGISTRATION
     volumes:
-      - .:/app                # code source (hot-reload)
-      - /app/node_modules     # node_modules de l'image (non masqués par le bind)
-      - /app/.next            # cache de build de l'image
-      - ./data:/data          # bind-mount SQLite → persiste sur l'hôte
+      - .:/app # code source (hot-reload)
+      - /app/node_modules # node_modules de l'image
+      - /app/.next # cache de build de l'image
     command: sh -c "npx prisma generate && npx prisma db push && npm run dev"
+
+volumes:
+  cockpit-pgdata:
