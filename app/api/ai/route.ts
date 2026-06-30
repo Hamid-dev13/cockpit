@@ -374,9 +374,13 @@ export async function POST(req: Request) {
             role: 'system',
             content:
               `Tu extrais les informations clés d'une offre d'emploi. ${NO_EMOJI} ` +
-              `Renvoie STRICTEMENT un JSON {"company": string, "role": string, "salary": string, "stack": string[], "location": string}. ` +
-              `Si une info est absente, mets "—" (ou [] pour stack). ` +
-              `salary au format court ex "65–80k€". location ex "Remote", "Paris".`,
+              `Renvoie STRICTEMENT un JSON {"company": string, "role": string, "salary": string, "stack": string[], "location": string, "contract": string, "remote": string, "seniority": string, "companyInfo": string}. ` +
+              `Si une info est absente, mets "—" (ou [] pour stack, "" pour companyInfo). ` +
+              `salary au format court ex "65–80k€". location ex "Paris", "Lyon". ` +
+              `contract: type de contrat (CDI, CDD, Freelance, Stage, Alternance…). ` +
+              `remote: "Remote", "Hybride" ou "Sur site". ` +
+              `seniority: niveau attendu (Junior, Confirmé, Senior, Lead…). ` +
+              `companyInfo: une phrase sur l'entreprise (secteur, taille, activité) si l'offre le mentionne.`,
           },
           { role: 'user', content: source.slice(0, 8000) },
         ],

@@ -10,7 +10,7 @@ Le principe : ce n'est pas un tableur de plus. L'application met en avant ce qu'
 - Radar de momentum : chaque candidature refroidit avec l'inactivite (vert vers rouge), pour reperer le risque de ghosting.
 - Zone "Aujourd'hui" : actions prioritaires mises en avant (entretien a preparer, relance recommandee).
 - Copilote IA (raccourci Cmd/Ctrl+K) : questions en langage naturel sur le pipeline.
-- Coller une offre : extraction automatique des informations (entreprise, poste, stack, remuneration, localisation) depuis un texte ou une URL publique.
+- Coller une offre : extraction automatique des informations (entreprise, poste, stack, remuneration, localisation, type de contrat, teletravail, seniorite, infos entreprise) depuis un texte ou une URL publique.
 - Saisie manuelle : pour les candidatures spontanees, avec nature (offre / spontanee / reseau) et canal (email / telephone / formulaire / LinkedIn / autre).
 - Actions IA par candidature : rediger une relance, preparer un entretien, resumer l'offre.
 - Description du poste editable et journal de notes par candidature.

@@ -17,6 +17,10 @@ export interface Card {
   salary: string
   stack: string[]
   location: string
+  contract: string
+  remote: string
+  seniority: string
+  companyInfo: string
   url: string
   description: string
   last: number

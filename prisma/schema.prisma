@@ -17,6 +17,10 @@ model Candidature {
   salary    String    @default("—")
   stack     String    @default("") // liste de technos stockee en CSV
   location  String    @default("—")
+  contract  String    @default("—") // CDI, CDD, Freelance, Stage, Alternance…
+  remote    String    @default("—") // Remote, Hybride, Sur site
+  seniority String    @default("—") // Junior, Confirme, Senior…
+  companyInfo String  @default("") // secteur / taille / activite de l'entreprise
   url       String    @default("")
   description String  @default("")
   last      DateTime  @default(now())

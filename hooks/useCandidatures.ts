@@ -80,6 +80,10 @@ export function useCandidatures() {
         salary: g.salary,
         stack: Array.isArray(g.stack) ? g.stack : [],
         location: g.location,
+        contract: g.contract,
+        remote: g.remote,
+        seniority: g.seniority,
+        companyInfo: g.companyInfo,
         url: raw.startsWith('http') ? raw.split(/\s/)[0] : '',
         description: g.description || '',
       })

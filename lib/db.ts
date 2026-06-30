@@ -22,6 +22,10 @@ export function serialize(c: any) {
           .filter(Boolean)
       : [],
     location: c.location,
+    contract: c.contract ?? '—',
+    remote: c.remote ?? '—',
+    seniority: c.seniority ?? '—',
+    companyInfo: c.companyInfo ?? '',
     url: c.url,
     description: c.description ?? '',
     last: new Date(c.last).getTime(),
