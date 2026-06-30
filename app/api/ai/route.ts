@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { mistral, mistralJson, mistralWithTools, type ToolSpec } from '@/lib/mistral'
 import { ExtractSchema } from '@/lib/ai-schemas'
 import { ORDER, STATUS } from '@/lib/status'
+import { momentum } from '@/lib/momentum'
 import type { Status } from '@/lib/types'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
@@ -152,13 +153,19 @@ export async function POST(req: Request) {
     if (action === 'copilot') {
       const { q, cards } = body
       const list: any[] = Array.isArray(cards) ? cards : []
-      const pipeline = list.map((c) => ({
-        id: c.id,
-        company: c.company,
-        role: c.role,
-        status: c.status,
-        joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
-      }))
+      const pipeline = list.map((c) => {
+        const m = momentum({ ...c, last: Number(c.last) })
+        return {
+          id: c.id,
+          company: c.company,
+          role: c.role,
+          status: c.status,
+          joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
+          // Meme radar de ghosting que l'UI : ok | warm | cool | cold (null si offer/rejected).
+          momentum: m?.risk ?? null,
+          momentumLabel: m?.label ?? null,
+        }
+      })
 
       // Ids confirmes via la base (toujours affiches) et suggeres par le modele (filtres).
       const confirmed = new Set<number>()
@@ -308,7 +315,8 @@ export async function POST(req: Request) {
 
       const sys =
         `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
-        `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif). ` +
+        `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif, momentum). ` +
+        `Le champ "momentum" est le radar de ghosting affiche a l'utilisateur : ok (frais), warm (tiede), cool (refroidit), cold (ghosting), ou null (offer/rejected). ` +
         `Statuts: wishlist, applied (postule), interview (entretien), offer (offre), rejected (refuse). ` +
         `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (pour citer des candidatures). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
@@ -316,7 +324,7 @@ export async function POST(req: Request) {
         `Apres une action, confirme brievement ce que tu as fait. ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
         `Reponds en francais, de facon concise et actionnable. ` +
-        `Pour les RELANCES, priorise les candidatures les plus INACTIVES (joursInactif eleve) en statut applied ou interview ; ignore offer et rejected.`
+        `Pour les RELANCES, appuie-toi sur le momentum : priorise cold puis cool, en statut applied ou interview ; ignore offer et rejected. A momentum egal, departage par joursInactif.`
 
       const { answer } = await mistralWithTools(
         [
