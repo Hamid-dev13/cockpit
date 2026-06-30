@@ -101,6 +101,23 @@ async function fetchPageText(url: string): Promise<string | null> {
   return (await fetchViaReader(url)) ?? (await fetchRaw(url))
 }
 
+/**
+ * Heuristique : distingue une page d'offre d'un site d'entreprise.
+ * Un chemin contenant des mots cles d'offre ou profond -> offre ; une racine
+ * de domaine (peu/pas de chemin) -> site d'entreprise.
+ */
+function classifyUrl(raw: string): 'offer' | 'company' {
+  try {
+    const u = new URL(raw)
+    const offerRe = /(jobs?|offre|emploi|career|carriere|vacanc|recrut|hiring|position|stelle|apply|candidat|job[-_])/i
+    if (offerRe.test(u.pathname) || offerRe.test(u.search)) return 'offer'
+    const segments = u.pathname.split('/').filter(Boolean)
+    return segments.length === 0 ? 'company' : 'offer'
+  } catch {
+    return 'offer'
+  }
+}
+
 export async function POST(req: Request) {
   const auth = await getAuth()
   if (!auth) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
@@ -360,6 +377,7 @@ export async function POST(req: Request) {
       const { raw } = body
       let source = String(raw || '').trim()
       const isUrl = /^https?:\/\//i.test(source)
+      const urlType = isUrl ? classifyUrl(source) : null
       let fetchedOk = false
       if (isUrl) {
         const page = await fetchPageText(source)
@@ -368,26 +386,32 @@ export async function POST(req: Request) {
           fetchedOk = true
         }
       }
+      const context =
+        urlType === 'company'
+          ? `Le contenu provient du SITE d'une entreprise (page corporate, pas une offre precise). ` +
+            `Concentre-toi sur companyInfo (secteur, taille, activite, stack technique si mentionnee). ` +
+            `role/salary/contract sont probablement absents : mets "—".`
+          : `Le contenu est une offre d'emploi.`
       const parsed = await mistralJson(
         [
           {
             role: 'system',
             content:
-              `Tu extrais les informations clés d'une offre d'emploi. ${NO_EMOJI} ` +
+              `Tu extrais les informations clés d'une offre d'emploi ou d'une page d'entreprise. ${NO_EMOJI} ${context} ` +
               `Renvoie STRICTEMENT un JSON {"company": string, "role": string, "salary": string, "stack": string[], "location": string, "contract": string, "remote": string, "seniority": string, "companyInfo": string}. ` +
               `Si une info est absente, mets "—" (ou [] pour stack, "" pour companyInfo). ` +
               `salary au format court ex "65–80k€". location ex "Paris", "Lyon". ` +
               `contract: type de contrat (CDI, CDD, Freelance, Stage, Alternance…). ` +
               `remote: "Remote", "Hybride" ou "Sur site". ` +
               `seniority: niveau attendu (Junior, Confirmé, Senior, Lead…). ` +
-              `companyInfo: une phrase sur l'entreprise (secteur, taille, activité) si l'offre le mentionne.`,
+              `companyInfo: une phrase sur l'entreprise (secteur, taille, activité).`,
           },
           { role: 'user', content: source.slice(0, 8000) },
         ],
         ExtractSchema,
       )
       const description = fetchedOk || !isUrl ? source.slice(0, 5000) : ''
-      return NextResponse.json({ ...parsed, _fetched: fetchedOk, description })
+      return NextResponse.json({ ...parsed, _fetched: fetchedOk, _urlType: urlType, description })
     }
 
     // ── Rédaction : relance / prépa entretien / résumé d'offre ──
