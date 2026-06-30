@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { setUnauthorizedHandler } from '@/lib/api'
+import { setUnauthorizedHandler, updateUser as apiUpdateUser } from '@/lib/api'
 
 export interface AuthUser {
   id: number
@@ -23,6 +23,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   register: (input: RegisterInput) => Promise<void>
   logout: () => Promise<void>
+  updateUser: (body: { firstName?: string; lastName?: string; email?: string }) => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -87,7 +88,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null)
   }, [])
 
-  return <AuthContext.Provider value={{ user, loading, login, register, logout }}>{children}</AuthContext.Provider>
+  const updateUser = useCallback(async (body: { firstName?: string; lastName?: string; email?: string }) => {
+    const updated = await apiUpdateUser(body)
+    setUser(updated)
+  }, [])
+
+  return <AuthContext.Provider value={{ user, loading, login, register, logout, updateUser }}>{children}</AuthContext.Provider>
 }
 
 export function useAuth() {

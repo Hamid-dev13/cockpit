@@ -14,6 +14,7 @@ import { DetailPanel } from './DetailPanel'
 import { Copilot } from './Copilot'
 import { PasteModal } from './PasteModal'
 import { ManualModal } from './ManualModal'
+import { SettingsModal } from './SettingsModal'
 
 export function Cockpit() {
   const { cards, loading, toast, flash, reload, setStatus, addNote, patch, createFromExtract, createManual, remove } =
@@ -26,6 +27,7 @@ export function Cockpit() {
   const [cmdOpen, setCmdOpen] = useState(false)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [manualKind, setManualKind] = useState<Kind | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   useEffect(() => setMounted(true), [])
 
@@ -65,6 +67,7 @@ export function Cockpit() {
         onPaste={() => setPasteOpen(true)}
         onManual={() => setManualKind('offer')}
         onSpontaneous={() => setManualKind('spontaneous')}
+        onSettings={() => setSettingsOpen(true)}
       />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
@@ -141,6 +144,8 @@ export function Cockpit() {
           }}
         />
       )}
+
+      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">

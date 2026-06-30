@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  X, Banknote, MapPin, Link as LinkIcon, Sparkles, Mail, Target, FileText, Loader2, CornerDownLeft, Trash2,
+  X, Banknote, MapPin, Link as LinkIcon, Sparkles, Mail, Target, FileText, Loader2, CornerDownLeft, Trash2, Pencil,
 } from 'lucide-react'
 import type { Card, Status } from '@/lib/types'
 import { ORDER, STATUS, KIND } from '@/lib/status'
@@ -31,6 +31,10 @@ export function DetailPanel({
   const [desc, setDesc] = useState(c.description)
   const [savingDesc, setSavingDesc] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [company, setCompany] = useState(c.company)
+  const [role, setRole] = useState(c.role)
+  const [savingTitle, setSavingTitle] = useState(false)
 
   async function draft(kind: string) {
     setLoad(true)
@@ -58,28 +62,85 @@ export function DetailPanel({
     setSavingDesc(false)
   }
 
+  async function saveTitle() {
+    if (company === c.company && role === c.role) {
+      setEditingTitle(false)
+      return
+    }
+    setSavingTitle(true)
+    await onPatch({ company, role }, { company, role })
+    setSavingTitle(false)
+    setEditingTitle(false)
+  }
+
   return (
     <>
       <div className="fixed inset-0 z-40 bg-black/40 animate-fadein" onClick={onClose} />
       <aside className="fixed top-0 right-0 z-40 h-full w-full max-w-md glass border-l animate-slidein flex flex-col">
         <div className="flex items-start justify-between p-5 border-b">
           <div>
-            <div className="flex items-center gap-2">
-              <div className="text-xl font-bold">{c.company}</div>
-              {c.kind !== 'offer' && (
-                <span
-                  className="text-[10px] px-1.5 py-px rounded border"
-                  style={{
-                    color: 'var(--accent)',
-                    borderColor: 'color-mix(in srgb,var(--accent) 35%,transparent)',
-                    background: 'color-mix(in srgb,var(--accent) 8%,transparent)',
-                  }}
-                >
-                  {KIND[c.kind].label}
-                </span>
-              )}
-            </div>
-            <div className="text-[var(--muted)]">{c.role}</div>
+            {editingTitle ? (
+              <div className="space-y-2 mb-1">
+                <input
+                  autoFocus
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveTitle() }}
+                  placeholder="Entreprise"
+                  className="w-full text-xl font-bold bg-[var(--surface)] border rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                />
+                <input
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') saveTitle() }}
+                  placeholder="Poste"
+                  className="w-full text-[var(--muted)] bg-[var(--surface)] border rounded-lg px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={saveTitle}
+                    disabled={savingTitle}
+                    className="text-[11px] font-medium inline-flex items-center gap-1 hover:underline disabled:opacity-60"
+                    style={{ color: 'var(--accent)' }}
+                  >
+                    {savingTitle ? <Loader2 className="w-3 h-3 animate-spin" /> : <CornerDownLeft className="w-3 h-3" />}
+                    Enregistrer
+                  </button>
+                  <button
+                    onClick={() => { setCompany(c.company); setRole(c.role); setEditingTitle(false) }}
+                    className="text-[11px] text-[var(--muted)] hover:text-[var(--fg)]"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 group">
+                  <div className="text-xl font-bold">{c.company}</div>
+                  {c.kind !== 'offer' && (
+                    <span
+                      className="text-[10px] px-1.5 py-px rounded border"
+                      style={{
+                        color: 'var(--accent)',
+                        borderColor: 'color-mix(in srgb,var(--accent) 35%,transparent)',
+                        background: 'color-mix(in srgb,var(--accent) 8%,transparent)',
+                      }}
+                    >
+                      {KIND[c.kind].label}
+                    </span>
+                  )}
+                  <button
+                    onClick={() => setEditingTitle(true)}
+                    className="opacity-0 group-hover:opacity-100 text-[var(--muted)] hover:text-[var(--fg)] transition-opacity p-0.5"
+                    title="Modifier le titre"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+                <div className="text-[var(--muted)]">{c.role}</div>
+              </>
+            )}
             <div className="flex items-center gap-3 mt-2 text-xs text-[var(--muted)] flex-wrap">
               {c.salary && c.salary !== '—' && (
                 <span className="inline-flex items-center gap-1">

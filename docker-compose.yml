@@ -25,7 +25,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      - '3000:3000'
+      - '3075:3000'
     environment:
       DATABASE_URL: 'postgresql://cockpit:cockpit@db:5432/cockpit?schema=public'
       NODE_ENV: development

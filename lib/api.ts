@@ -46,6 +46,18 @@ export async function ai(action: string, payload: Record<string, unknown>) {
   return data
 }
 
+// ── Utilisateur ─────────────────────────────────────────────────────────────
+export async function updateUser(body: { firstName?: string; lastName?: string; email?: string }) {
+  const r = await authFetch('/api/auth/me', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  const data = await readJson(r)
+  if (!r.ok) throw new Error(data.error || 'Échec de la mise à jour')
+  return data.user
+}
+
 // ── Candidatures (CRUD) ──────────────────────────────────────────────────────
 export async function listCards(): Promise<Card[]> {
   const r = await authFetch('/api/candidatures')
