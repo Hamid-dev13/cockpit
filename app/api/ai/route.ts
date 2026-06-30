@@ -1,8 +1,12 @@
 import { NextResponse } from 'next/server'
 import { mistral, mistralJson, mistralWithTools, type ToolSpec } from '@/lib/mistral'
 import { ExtractSchema } from '@/lib/ai-schemas'
+import { ORDER, STATUS } from '@/lib/status'
+import type { Status } from '@/lib/types'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
+
+const KINDS = ['offer', 'spontaneous', 'network']
 
 export const runtime = 'nodejs'
 
@@ -110,6 +114,40 @@ export async function POST(req: Request) {
   const { action } = body
 
   try {
+    // ── Annulation d'une action du copilote (undo) ──
+    if (action === 'undo') {
+      const { undo } = body
+      if (!undo || typeof undo !== 'object') {
+        return NextResponse.json({ error: 'Payload undo invalide' }, { status: 400 })
+      }
+      if (undo.kind === 'patch') {
+        const c = await prisma.candidature.findFirst({ where: { id: Number(undo.id), userId: auth.id } })
+        if (!c) return NextResponse.json({ error: 'Candidature introuvable' }, { status: 404 })
+        const data: any = {}
+        if (undo.data?.status !== undefined) data.status = undo.data.status
+        if (undo.data?.lastMs !== undefined) data.last = new Date(Number(undo.data.lastMs))
+        await prisma.candidature.update({ where: { id: c.id }, data })
+        return NextResponse.json({ ok: true })
+      }
+      if (undo.kind === 'delCandidature') {
+        const c = await prisma.candidature.findFirst({ where: { id: Number(undo.id), userId: auth.id } })
+        if (c) await prisma.candidature.delete({ where: { id: c.id } })
+        return NextResponse.json({ ok: true })
+      }
+      if (undo.kind === 'delComment') {
+        const com = await prisma.comment.findFirst({
+          where: { id: Number(undo.commentId), candidature: { userId: auth.id } },
+        })
+        if (com) await prisma.comment.delete({ where: { id: com.id } })
+        if (undo.id !== undefined && undo.lastMs !== undefined) {
+          const c = await prisma.candidature.findFirst({ where: { id: Number(undo.id), userId: auth.id } })
+          if (c) await prisma.candidature.update({ where: { id: c.id }, data: { last: new Date(Number(undo.lastMs)) } })
+        }
+        return NextResponse.json({ ok: true })
+      }
+      return NextResponse.json({ error: 'Annulation inconnue' }, { status: 400 })
+    }
+
     // ── Copilote agentique : répond et peut appeler des outils sur le pipeline ──
     if (action === 'copilot') {
       const { q, cards } = body
@@ -122,8 +160,11 @@ export async function POST(req: Request) {
         joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
       }))
 
-      // Candidatures mises en avant par le modele (affichees sous la reponse).
-      const highlighted = new Set<number>()
+      // Ids confirmes via la base (toujours affiches) et suggeres par le modele (filtres).
+      const confirmed = new Set<number>()
+      const suggested = new Set<number>()
+      // Actions modifiantes effectuees, avec de quoi les annuler cote client.
+      const actions: { label: string; undo: any }[] = []
 
       const tools: ToolSpec[] = [
         {
@@ -140,7 +181,7 @@ export async function POST(req: Request) {
               include: { comments: true },
             })
             if (!c) return 'Candidature introuvable.'
-            highlighted.add(c.id)
+            confirmed.add(c.id)
             return JSON.stringify({
               id: c.id,
               company: c.company,
@@ -164,8 +205,103 @@ export async function POST(req: Request) {
             required: ['ids'],
           },
           handler: async ({ ids }) => {
-            ;(Array.isArray(ids) ? ids : []).forEach((i: any) => highlighted.add(Number(i)))
+            ;(Array.isArray(ids) ? ids : []).forEach((i: any) => suggested.add(Number(i)))
             return 'ok'
+          },
+        },
+        {
+          name: 'changer_statut',
+          description: 'Change le statut d\'une candidature.',
+          parameters: {
+            type: 'object',
+            properties: {
+              id: { type: 'number' },
+              statut: { type: 'string', enum: ORDER, description: 'wishlist, applied, interview, offer ou rejected' },
+            },
+            required: ['id', 'statut'],
+          },
+          handler: async ({ id, statut }) => {
+            if (!ORDER.includes(statut)) return `Statut invalide: ${statut}.`
+            const c = await prisma.candidature.findFirst({ where: { id: Number(id), userId: auth.id } })
+            if (!c) return 'Candidature introuvable.'
+            const prev = { status: c.status, lastMs: c.last.getTime() }
+            await prisma.candidature.update({ where: { id: c.id }, data: { status: statut, last: new Date() } })
+            confirmed.add(c.id)
+            actions.push({
+              label: `${c.company} → ${STATUS[statut as Status].label}`,
+              undo: { kind: 'patch', id: c.id, data: prev },
+            })
+            return `Statut de ${c.company} change en ${statut}.`
+          },
+        },
+        {
+          name: 'marquer_relance',
+          description: "Marque une candidature comme relancee aujourd'hui (remet son radar de momentum au vert).",
+          parameters: { type: 'object', properties: { id: { type: 'number' } }, required: ['id'] },
+          handler: async ({ id }) => {
+            const c = await prisma.candidature.findFirst({ where: { id: Number(id), userId: auth.id } })
+            if (!c) return 'Candidature introuvable.'
+            const prevLastMs = c.last.getTime()
+            await prisma.candidature.update({ where: { id: c.id }, data: { last: new Date() } })
+            confirmed.add(c.id)
+            actions.push({ label: `Relance marquee : ${c.company}`, undo: { kind: 'patch', id: c.id, data: { lastMs: prevLastMs } } })
+            return `Relance enregistree pour ${c.company}.`
+          },
+        },
+        {
+          name: 'ajouter_note',
+          description: "Ajoute une note datee au journal d'une candidature.",
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'number' }, texte: { type: 'string' } },
+            required: ['id', 'texte'],
+          },
+          handler: async ({ id, texte }) => {
+            const t = String(texte || '').trim()
+            if (!t) return 'Note vide.'
+            const c = await prisma.candidature.findFirst({ where: { id: Number(id), userId: auth.id } })
+            if (!c) return 'Candidature introuvable.'
+            const prevLastMs = c.last.getTime()
+            const note = await prisma.comment.create({ data: { candidatureId: c.id, txt: t } })
+            await prisma.candidature.update({ where: { id: c.id }, data: { last: new Date() } })
+            confirmed.add(c.id)
+            actions.push({
+              label: `Note ajoutee a ${c.company}`,
+              undo: { kind: 'delComment', commentId: note.id, id: c.id, lastMs: prevLastMs },
+            })
+            return `Note ajoutee a ${c.company}.`
+          },
+        },
+        {
+          name: 'creer_candidature',
+          description: "Cree une nouvelle candidature (ex: une candidature spontanee).",
+          parameters: {
+            type: 'object',
+            properties: {
+              company: { type: 'string' },
+              role: { type: 'string' },
+              kind: { type: 'string', enum: KINDS, description: 'offer, spontaneous ou network' },
+              statut: { type: 'string', enum: ORDER },
+            },
+            required: ['company'],
+          },
+          handler: async ({ company, role, kind, statut }) => {
+            const name = String(company || '').trim()
+            if (!name) return "Nom d'entreprise requis."
+            const k = KINDS.includes(kind) ? kind : 'offer'
+            const c = await prisma.candidature.create({
+              data: {
+                userId: auth.id,
+                company: name,
+                role: (role && String(role).trim()) || (k === 'spontaneous' ? 'Candidature spontanée' : 'Poste'),
+                status: ORDER.includes(statut) ? statut : 'wishlist',
+                kind: k,
+                last: new Date(),
+              },
+            })
+            confirmed.add(c.id)
+            actions.push({ label: `Candidature creee : ${c.company}`, undo: { kind: 'delCandidature', id: c.id } })
+            return `Candidature creee pour ${c.company} (id ${c.id}).`
           },
         },
       ]
@@ -174,7 +310,10 @@ export async function POST(req: Request) {
         `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
         `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif). ` +
         `Statuts: wishlist, applied (postule), interview (entretien), offer (offre), rejected (refuse). ` +
-        `Utilise l'outil details_candidature pour lire la description ou les notes d'une candidature. ` +
+        `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (pour citer des candidatures). ` +
+        `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
+        `N'utilise les outils d'action que si l'utilisateur demande explicitement de faire le changement ; sinon contente-toi de repondre ou de suggerer. ` +
+        `Apres une action, confirme brievement ce que tu as fait. ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
         `Reponds en francais, de facon concise et actionnable. ` +
         `Pour les RELANCES, priorise les candidatures les plus INACTIVES (joursInactif eleve) en statut applied ou interview ; ignore offer et rejected.`
@@ -188,8 +327,11 @@ export async function POST(req: Request) {
       )
 
       const known = new Set<number>(pipeline.map((p) => Number(p.id)))
-      const cardIds = Array.from(highlighted).filter((id) => known.has(id))
-      return NextResponse.json({ answer, cardIds })
+      const ids = new Set<number>(confirmed)
+      suggested.forEach((id) => {
+        if (known.has(id)) ids.add(id)
+      })
+      return NextResponse.json({ answer, cardIds: Array.from(ids), actions })
     }
 
     // ── Auto-fill : extrait les infos clés d'une offre collée ──

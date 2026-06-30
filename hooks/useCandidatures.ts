@@ -120,5 +120,5 @@ export function useCandidatures() {
     [flash, load],
   )
 
-  return { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual, remove }
+  return { cards, loading, toast, flash, reload: load, setStatus, addNote, patch, createFromExtract, createManual, remove }
 }

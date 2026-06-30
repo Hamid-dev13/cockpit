@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Bot, Loader2 } from 'lucide-react'
+import { Bot, Loader2, Check, Undo2 } from 'lucide-react'
 import type { Card } from '@/lib/types'
 import { STATUS } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
@@ -9,19 +9,29 @@ import { ai } from '@/lib/api'
 import { useAuth } from '@/hooks/useAuth'
 import { RichText } from './RichText'
 
+interface Action {
+  label: string
+  undo: any
+}
+
 export function Copilot({
   cards,
   onClose,
   onOpen,
+  onMutated,
+  onToast,
 }: {
   cards: Card[]
   onClose: () => void
   onOpen: (id: number) => void
+  onMutated?: () => void
+  onToast?: (m: string) => void
 }) {
   const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
-  const [res, setRes] = useState<{ answer: string; cardIds: number[] } | null>(null)
+  const [res, setRes] = useState<{ answer: string; cardIds: number[]; actions: Action[] } | null>(null)
+  const [undone, setUndone] = useState<Record<number, boolean>>({})
   const [err, setErr] = useState('')
 
   async function run(text: string) {
@@ -30,13 +40,27 @@ export function Copilot({
     setLoading(true)
     setErr('')
     setRes(null)
+    setUndone({})
     try {
       const r = await ai('copilot', { q: text, cards })
-      setRes({ answer: r.answer || '', cardIds: Array.isArray(r.cardIds) ? r.cardIds : [] })
+      const actions: Action[] = Array.isArray(r.actions) ? r.actions : []
+      setRes({ answer: r.answer || '', cardIds: Array.isArray(r.cardIds) ? r.cardIds : [], actions })
+      if (actions.length) onMutated?.() // le copilote a modifie des donnees : on recharge
     } catch (e: any) {
       setErr(e.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function undo(i: number, action: Action) {
+    try {
+      await ai('undo', { undo: action.undo })
+      setUndone((u) => ({ ...u, [i]: true }))
+      onMutated?.()
+      onToast?.('Action annulée')
+    } catch (e: any) {
+      onToast?.(e.message || "Échec de l'annulation")
     }
   }
 
@@ -96,6 +120,24 @@ export function Copilot({
               <div className="px-3 py-2 text-sm leading-relaxed">
                 <RichText text={res.answer} />
               </div>
+              {res.actions.map((a, i) => (
+                <div
+                  key={i}
+                  className="mx-1 my-1 px-3 py-2 rounded-lg border flex items-center gap-2 text-sm"
+                  style={{ borderColor: 'rgba(16,185,129,.35)', background: 'rgba(16,185,129,.07)' }}
+                >
+                  <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                  <span className={undone[i] ? 'line-through text-[var(--muted)]' : ''}>{a.label}</span>
+                  <button
+                    onClick={() => undo(i, a)}
+                    disabled={undone[i]}
+                    className="ml-auto inline-flex items-center gap-1 text-[12px] text-[var(--muted)] hover:text-[var(--fg)] disabled:opacity-50"
+                  >
+                    <Undo2 className="w-3.5 h-3.5" />
+                    {undone[i] ? 'Annulé' : 'Annuler'}
+                  </button>
+                </div>
+              ))}
               {res.cardIds.map((id) => {
                 const c = cards.find((x) => x.id === id)
                 if (!c) return null

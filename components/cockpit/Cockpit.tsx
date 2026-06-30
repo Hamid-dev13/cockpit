@@ -16,7 +16,8 @@ import { PasteModal } from './PasteModal'
 import { ManualModal } from './ManualModal'
 
 export function Cockpit() {
-  const { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual, remove } = useCandidatures()
+  const { cards, loading, toast, flash, reload, setStatus, addNote, patch, createFromExtract, createManual, remove } =
+    useCandidatures()
 
   const [mounted, setMounted] = useState(false)
   const [fStatus, setFStatus] = useState('all')
@@ -113,6 +114,8 @@ export function Cockpit() {
             setCmdOpen(false)
             setPanelId(id)
           }}
+          onMutated={reload}
+          onToast={flash}
         />
       )}
 
