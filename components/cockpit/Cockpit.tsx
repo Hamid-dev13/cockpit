@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import type { Kind } from '@/lib/types'
 import { ORDER } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
 import { useCandidatures } from '@/hooks/useCandidatures'
@@ -23,7 +24,7 @@ export function Cockpit() {
   const [panelId, setPanelId] = useState<number | null>(null)
   const [cmdOpen, setCmdOpen] = useState(false)
   const [pasteOpen, setPasteOpen] = useState(false)
-  const [manualOpen, setManualOpen] = useState(false)
+  const [manualKind, setManualKind] = useState<Kind | null>(null)
 
   useEffect(() => setMounted(true), [])
 
@@ -37,7 +38,7 @@ export function Cockpit() {
         setCmdOpen(false)
         setPanelId(null)
         setPasteOpen(false)
-        setManualOpen(false)
+        setManualKind(null)
       }
     }
     window.addEventListener('keydown', h)
@@ -58,7 +59,12 @@ export function Cockpit() {
 
   return (
     <div className="h-screen flex flex-col">
-      <Header onCopilot={() => setCmdOpen(true)} onPaste={() => setPasteOpen(true)} onManual={() => setManualOpen(true)} />
+      <Header
+        onCopilot={() => setCmdOpen(true)}
+        onPaste={() => setPasteOpen(true)}
+        onManual={() => setManualKind('offer')}
+        onSpontaneous={() => setManualKind('spontaneous')}
+      />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
         <div className="max-w-5xl mx-auto">
@@ -121,12 +127,13 @@ export function Cockpit() {
         />
       )}
 
-      {manualOpen && (
+      {manualKind && (
         <ManualModal
-          onClose={() => setManualOpen(false)}
+          initialKind={manualKind}
+          onClose={() => setManualKind(null)}
           onCreate={async (body) => {
             const created = await createManual(body)
-            setManualOpen(false)
+            setManualKind(null)
             setPanelId(created.id)
           }}
         />

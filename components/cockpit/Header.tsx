@@ -2,17 +2,19 @@
 
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Plus, Bot, Sun, Moon, Sparkles, PenLine, LogOut } from 'lucide-react'
+import { Plus, Bot, Sun, Moon, Sparkles, PenLine, Send, LogOut } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Header({
   onCopilot,
   onPaste,
   onManual,
+  onSpontaneous,
 }: {
   onCopilot: () => void
   onPaste: () => void
   onManual: () => void
+  onSpontaneous: () => void
 }) {
   const [addMenu, setAddMenu] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
@@ -91,12 +93,22 @@ export function Header({
               <button
                 onClick={() => {
                   setAddMenu(false)
+                  onSpontaneous()
+                }}
+                className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-2.5"
+              >
+                <Send className="w-4 h-4" style={{ color: 'var(--accent)' }} />
+                Candidature spontanée
+              </button>
+              <button
+                onClick={() => {
+                  setAddMenu(false)
                   onManual()
                 }}
                 className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-[var(--surface-2)] flex items-center gap-2.5"
               >
                 <PenLine className="w-4 h-4 text-[var(--muted)]" />
-                Saisie manuelle / spontanée
+                Saisie manuelle
               </button>
             </div>
           </>
