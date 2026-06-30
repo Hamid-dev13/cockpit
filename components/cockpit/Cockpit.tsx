@@ -59,19 +59,6 @@ export function Cockpit() {
     return m && (m.risk === 'cool' || m.risk === 'cold')
   }).length
 
-  if (view === 'settings') {
-    return (
-      <>
-        <SettingsView onBack={() => setView('dashboard')} />
-        {toast && (
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
-            <div className="glass border rounded-xl px-4 py-2.5 text-sm shadow-2xl animate-fadein">{toast}</div>
-          </div>
-        )}
-      </>
-    )
-  }
-
   return (
     <div className="h-screen flex flex-col">
       <Header
@@ -82,43 +69,49 @@ export function Cockpit() {
         onSettings={() => setView('settings')}
       />
 
-      <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
-        <div className="max-w-5xl mx-auto">
-          <TodaySection cards={cards} onOpen={setPanelId} onCopilot={() => setCmdOpen(true)} />
-          <Filters cards={cards} fStatus={fStatus} onStatus={setFStatus} q={q} onQ={setQ} />
+      {view === 'settings' ? (
+        <SettingsView onBack={() => setView('dashboard')} />
+      ) : (
+        <>
+          <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
+            <div className="max-w-5xl mx-auto">
+              <TodaySection cards={cards} onOpen={setPanelId} onCopilot={() => setCmdOpen(true)} />
+              <Filters cards={cards} fStatus={fStatus} onStatus={setFStatus} q={q} onQ={setQ} />
 
-          <div className="rounded-xl border overflow-hidden bg-[var(--surface)]">
-            {loading ? (
-              <div className="p-10 text-center text-[var(--muted)] text-sm flex items-center gap-2 justify-center">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Chargement…
+              <div className="rounded-xl border overflow-hidden bg-[var(--surface)]">
+                {loading ? (
+                  <div className="p-10 text-center text-[var(--muted)] text-sm flex items-center gap-2 justify-center">
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    Chargement…
+                  </div>
+                ) : list.length ? (
+                  list.map((c) => <CandidatureRow key={c.id} c={c} onOpen={() => setPanelId(c.id)} />)
+                ) : (
+                  <div className="p-10 text-center text-[var(--muted)] text-sm">Aucune candidature ici.</div>
+                )}
               </div>
-            ) : list.length ? (
-              list.map((c) => <CandidatureRow key={c.id} c={c} onOpen={() => setPanelId(c.id)} />)
-            ) : (
-              <div className="p-10 text-center text-[var(--muted)] text-sm">Aucune candidature ici.</div>
-            )}
-          </div>
 
-          <div className="mt-4 text-[11px] text-[var(--muted)] text-center">
-            {cards.length} candidatures · {staleCount} en perte de momentum
-          </div>
-        </div>
-      </main>
+              <div className="mt-4 text-[11px] text-[var(--muted)] text-center">
+                {cards.length} candidatures · {staleCount} en perte de momentum
+              </div>
+            </div>
+          </main>
 
-      {card && (
-        <DetailPanel
-          key={card.id}
-          c={card}
-          onClose={() => setPanelId(null)}
-          onPatch={(body, optimistic) => patch(card.id, body, optimistic)}
-          onSetStatus={(s) => setStatus(card.id, s)}
-          onAddNote={(txt) => addNote(card.id, txt)}
-          onDelete={() => {
-            remove(card.id)
-            setPanelId(null)
-          }}
-        />
+          {card && (
+            <DetailPanel
+              key={card.id}
+              c={card}
+              onClose={() => setPanelId(null)}
+              onPatch={(body, optimistic) => patch(card.id, body, optimistic)}
+              onSetStatus={(s) => setStatus(card.id, s)}
+              onAddNote={(txt) => addNote(card.id, txt)}
+              onDelete={() => {
+                remove(card.id)
+                setPanelId(null)
+              }}
+            />
+          )}
+        </>
       )}
 
       {cmdOpen && (
