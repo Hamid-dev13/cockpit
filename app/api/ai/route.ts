@@ -151,7 +151,16 @@ export async function POST(req: Request) {
 
     // ── Copilote agentique : répond et peut appeler des outils sur le pipeline ──
     if (action === 'copilot') {
-      const { q, cards } = body
+      const { q, cards, messages } = body
+      // Historique de conversation (multi-tours). Borne pour limiter cout/latence.
+      const history: { role: 'user' | 'assistant'; content: string }[] = (
+        Array.isArray(messages) && messages.length
+          ? messages
+          : [{ role: 'user', content: String(q ?? '') }]
+      )
+        .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+        .map((m: any) => ({ role: m.role, content: m.content }))
+        .slice(-16)
       const list: any[] = Array.isArray(cards) ? cards : []
       const pipeline = list.map((c) => {
         const m = momentum({ ...c, last: Number(c.last) })
@@ -324,12 +333,16 @@ export async function POST(req: Request) {
         `Apres une action, confirme brievement ce que tu as fait. ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
         `Reponds en francais, de facon concise et actionnable. ` +
+        `Tu peux recevoir plusieurs tours de conversation : tiens compte des messages precedents pour les questions de suivi. ` +
         `Pour les RELANCES, appuie-toi sur le momentum : priorise cold puis cool, en statut applied ou interview ; ignore offer et rejected. A momentum egal, departage par joursInactif.`
 
       const { answer } = await mistralWithTools(
         [
-          { role: 'system', content: sys },
-          { role: 'user', content: `Date actuelle (ms): ${Date.now()}\nApercu du pipeline:\n${JSON.stringify(pipeline)}\n\nQuestion: ${q}` },
+          {
+            role: 'system',
+            content: `${sys}\n\nDate actuelle (ms): ${Date.now()}\nApercu du pipeline (a jour):\n${JSON.stringify(pipeline)}`,
+          },
+          ...history,
         ],
         tools,
       )
