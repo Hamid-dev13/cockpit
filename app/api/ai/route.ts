@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
-import { mistral, mistralJson } from '@/lib/mistral'
-import { ExtractSchema, CopilotSchema } from '@/lib/ai-schemas'
+import { mistral, mistralJson, mistralWithTools, type ToolSpec } from '@/lib/mistral'
+import { ExtractSchema } from '@/lib/ai-schemas'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
@@ -110,34 +110,86 @@ export async function POST(req: Request) {
   const { action } = body
 
   try {
-    // ── Copilote : répond à une question en langage naturel sur le pipeline ──
+    // ── Copilote agentique : répond et peut appeler des outils sur le pipeline ──
     if (action === 'copilot') {
       const { q, cards } = body
-      const result = await mistralJson(
+      const list: any[] = Array.isArray(cards) ? cards : []
+      const pipeline = list.map((c) => ({
+        id: c.id,
+        company: c.company,
+        role: c.role,
+        status: c.status,
+        joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
+      }))
+
+      // Candidatures mises en avant par le modele (affichees sous la reponse).
+      const highlighted = new Set<number>()
+
+      const tools: ToolSpec[] = [
+        {
+          name: 'details_candidature',
+          description: "Lit la description complete et les notes d'une candidature, par son id.",
+          parameters: {
+            type: 'object',
+            properties: { id: { type: 'number', description: 'id de la candidature' } },
+            required: ['id'],
+          },
+          handler: async ({ id }) => {
+            const c = await prisma.candidature.findFirst({
+              where: { id: Number(id), userId: auth.id },
+              include: { comments: true },
+            })
+            if (!c) return 'Candidature introuvable.'
+            highlighted.add(c.id)
+            return JSON.stringify({
+              id: c.id,
+              company: c.company,
+              role: c.role,
+              status: c.status,
+              salary: c.salary,
+              stack: c.stack,
+              location: c.location,
+              description: (c.description || '').slice(0, 2000),
+              notes: c.comments.map((x) => x.txt),
+            })
+          },
+        },
+        {
+          name: 'mettre_en_avant_candidatures',
+          description:
+            "Signale a l'utilisateur les candidatures pertinentes : elles s'affichent sous ta reponse. Appelle cet outil pour toute candidature que tu cites.",
+          parameters: {
+            type: 'object',
+            properties: { ids: { type: 'array', items: { type: 'number' } } },
+            required: ['ids'],
+          },
+          handler: async ({ ids }) => {
+            ;(Array.isArray(ids) ? ids : []).forEach((i: any) => highlighted.add(Number(i)))
+            return 'ok'
+          },
+        },
+      ]
+
+      const sys =
+        `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
+        `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif). ` +
+        `Statuts: wishlist, applied (postule), interview (entretien), offer (offre), rejected (refuse). ` +
+        `Utilise l'outil details_candidature pour lire la description ou les notes d'une candidature. ` +
+        `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
+        `Reponds en francais, de facon concise et actionnable. ` +
+        `Pour les RELANCES, priorise les candidatures les plus INACTIVES (joursInactif eleve) en statut applied ou interview ; ignore offer et rejected.`
+
+      const { answer } = await mistralWithTools(
         [
-          {
-            role: 'system',
-            content:
-              `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
-              `Tu reçois la liste des candidatures au format JSON (champs: id, company, role, status, last = timestamp ms de dernière activité, comments). ` +
-              `Statuts possibles: wishlist, applied (postulé), interview (entretien), offer (offre), rejected (refusé). ` +
-              `Réponds en français, de façon concise et actionnable. ` +
-              `Pour les RELANCES, priorise les candidatures les plus INACTIVES (grand écart entre la date actuelle et "last") ` +
-              `au statut applied ou interview ; ignore les statuts offer et rejected. ` +
-              `Renvoie STRICTEMENT un objet JSON {"answer": string, "cardIds": number[]} ` +
-              `où cardIds contient les id des candidatures pertinentes (tableau vide si aucune).`,
-          },
-          {
-            role: 'user',
-            content: `Date actuelle (ms): ${Date.now()}\nCandidatures:\n${JSON.stringify(cards)}\n\nQuestion: ${q}`,
-          },
+          { role: 'system', content: sys },
+          { role: 'user', content: `Date actuelle (ms): ${Date.now()}\nApercu du pipeline:\n${JSON.stringify(pipeline)}\n\nQuestion: ${q}` },
         ],
-        CopilotSchema,
+        tools,
       )
-      // Ne garde que les cardIds qui existent reellement (evite les ids hallucines).
-      const known = new Set<number>(Array.isArray(cards) ? cards.map((c: any) => Number(c.id)) : [])
-      const cardIds = result.cardIds.filter((id) => known.has(id))
-      return NextResponse.json({ answer: result.answer, cardIds })
+
+      const known = new Set<number>(pipeline.map((p) => Number(p.id)))
+      const cardIds = Array.from(highlighted).filter((id) => known.has(id))
+      return NextResponse.json({ answer, cardIds })
     }
 
     // ── Auto-fill : extrait les infos clés d'une offre collée ──
