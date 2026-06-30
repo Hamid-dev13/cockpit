@@ -190,17 +190,20 @@ export async function POST(req: Request) {
         .map((m: any) => ({ role: m.role, content: m.content }))
         .slice(-16)
       const list: any[] = Array.isArray(cards) ? cards : []
+      // On envoie au modele des libelles FRANCAIS (pas les cles techniques) pour
+      // qu'il s'exprime naturellement. La cle brute reste pour le tri interne.
       const fullPipeline = list.map((c) => {
         const m = momentum({ ...c, last: Number(c.last) })
         return {
           id: c.id,
-          company: c.company,
-          role: c.role,
-          status: c.status,
+          entreprise: c.company,
+          poste: c.role,
+          statut: STATUS[c.status as Status]?.label ?? c.status,
           joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
-          // Meme radar de ghosting que l'UI : ok | warm | cool | cold (null si offer/rejected).
-          momentum: m?.risk ?? null,
-          momentumLabel: m?.label ?? null,
+          // Libelle francais du radar de ghosting (ex: "Ghosting · J+12"), null si offre/refuse.
+          alerte: m?.label ?? null,
+          _status: c.status as string,
+          _risk: m?.risk ?? null,
         }
       })
       // Troncature : au-dela du plafond, on garde les plus pertinentes (statuts
@@ -208,15 +211,17 @@ export async function POST(req: Request) {
       const MAX_PIPELINE = Number(process.env.AI_MAX_PIPELINE) || 100
       const truncated = fullPipeline.length > MAX_PIPELINE
       const ACTIVE = new Set(['applied', 'interview'])
-      const pipeline = truncated
+      const ranked = truncated
         ? [...fullPipeline]
             .sort((a, b) => {
-              const aw = ACTIVE.has(a.status) ? 1 : 0
-              const bw = ACTIVE.has(b.status) ? 1 : 0
+              const aw = ACTIVE.has(a._status) ? 1 : 0
+              const bw = ACTIVE.has(b._status) ? 1 : 0
               return bw - aw || b.joursInactif - a.joursInactif
             })
             .slice(0, MAX_PIPELINE)
         : fullPipeline
+      // On retire les champs techniques (_status/_risk) de ce qui part au modele.
+      const pipeline = ranked.map(({ _status, _risk, ...rest }) => rest)
 
       // Ids confirmes via la base (toujours affiches) et suggeres par le modele (filtres).
       const confirmed = new Set<number>()
@@ -366,19 +371,20 @@ export async function POST(req: Request) {
 
       const sys =
         `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
-        `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif, momentum). ` +
-        `Le champ "momentum" est le radar de ghosting affiche a l'utilisateur : ok (frais), warm (tiede), cool (refroidit), cold (ghosting), ou null (offer/rejected). ` +
-        `Statuts: wishlist, applied (postule), interview (entretien), offer (offre), rejected (refuse). ` +
-        `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (pour citer des candidatures). ` +
+        `Tu recois un apercu de ses candidatures (entreprise, poste, statut, joursInactif, alerte). ` +
+        `Le champ "alerte" est le radar de relance (ex: "Frais", "Tiede", "Refroidit", "Ghosting"), vide pour les candidatures classees. ` +
+        `EXPRIME-TOI COMME A UN AMI, en francais simple et naturel. ` +
+        `INTERDIT : tout jargon technique. N'ecris jamais "pipeline", "applied", "interview", "status", "momentum", "cold", "cardIds", ni aucun identifiant. ` +
+        `Dis plutot "tes candidatures" / "ton suivi", et nomme les candidatures par leur entreprise (et poste si besoin). ` +
+        `Utilise toujours les libelles francais des statuts : Wishlist, Postule, Entretien, Offre, Refuse. ` +
+        `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (les candidatures citees s'afficheront sous ta reponse). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
-        `N'utilise les outils d'action que si l'utilisateur demande explicitement de faire le changement ; sinon contente-toi de repondre ou de suggerer. ` +
-        `Apres une action, confirme brievement ce que tu as fait. ` +
-        `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
-        `Ne mentionne JAMAIS les id internes dans ta reponse (ni "id 9", ni "IDs 9 et 10", ni "ci-dessus") : ` +
-        `designe toujours une candidature par son entreprise (et son poste si besoin). Les id servent uniquement aux outils. ` +
-        `Reponds en francais, de facon concise et actionnable. ` +
+        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, Entretien=interview, Offre=offer, Refuse=rejected. ` +
+        `N'utilise les outils d'action que si l'utilisateur demande explicitement le changement ; sinon contente-toi de repondre ou suggerer. ` +
+        `Apres une action, confirme en une phrase simple (ex: "C'est fait, Acme est passe en Entretien."). ` +
+        `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites (cet appel est interne, ne mentionne pas les id a l'utilisateur). ` +
         `Tu peux recevoir plusieurs tours de conversation : tiens compte des messages precedents pour les questions de suivi. ` +
-        `Pour les RELANCES, appuie-toi sur le momentum : priorise cold puis cool, en statut applied ou interview ; ignore offer et rejected. A momentum egal, departage par joursInactif.`
+        `Pour les RELANCES, priorise celles en alerte "Ghosting" puis "Refroidit", au statut Postule ou Entretien ; ignore Offre et Refuse. A alerte egale, departage par joursInactif.`
 
       const { answer } = await mistralWithTools(
         [
@@ -387,8 +393,8 @@ export async function POST(req: Request) {
             content:
               `${sys}\n\nDate actuelle (ms): ${Date.now()}\n` +
               (truncated
-                ? `Apercu PARTIEL du pipeline (${pipeline.length} sur ${fullPipeline.length} candidatures, priorise actives + inactives) :\n`
-                : `Apercu du pipeline (a jour) :\n`) +
+                ? `Apercu PARTIEL de ses candidatures (${pipeline.length} sur ${fullPipeline.length}, les plus pertinentes) :\n`
+                : `Apercu de ses candidatures (a jour) :\n`) +
               JSON.stringify(pipeline),
           },
           ...history,
