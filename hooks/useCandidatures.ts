@@ -70,31 +70,6 @@ export function useCandidatures() {
     [patch],
   )
 
-  const createFromExtract = useCallback(
-    async (g: any, raw: string): Promise<Card> => {
-      const created = await createCard({
-        kind: 'offer',
-        channel: 'form',
-        company: g.company,
-        role: g.role,
-        salary: g.salary,
-        stack: Array.isArray(g.stack) ? g.stack : [],
-        location: g.location,
-        url: raw.startsWith('http') ? raw.split(/\s/)[0] : '',
-        description: g.description || '',
-      })
-      setCards((cs) => [...cs, created])
-      const wasUrl = raw.trim().startsWith('http')
-      flash(
-        wasUrl && g._fetched === false
-          ? `${created.company} ajouté — page non lisible, vérifie/complète les infos`
-          : `${created.company} ajouté depuis l'offre`,
-      )
-      return created
-    },
-    [flash],
-  )
-
   const createManual = useCallback(
     async (body: Record<string, unknown>): Promise<Card> => {
       const created = await createCard(body)
@@ -120,5 +95,5 @@ export function useCandidatures() {
     [flash, load],
   )
 
-  return { cards, loading, toast, flash, reload: load, setStatus, addNote, patch, createFromExtract, createManual, remove }
+  return { cards, loading, toast, flash, reload: load, setStatus, addNote, patch, createManual, remove }
 }

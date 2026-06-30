@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import {
   X, Banknote, MapPin, Link as LinkIcon, Sparkles, Mail, Target, FileText, Loader2, CornerDownLeft, Trash2, Pencil,
+  Briefcase, Home, Award, Building2,
 } from 'lucide-react'
 import type { Card, Status } from '@/lib/types'
 import { ORDER, STATUS, KIND } from '@/lib/status'
@@ -154,6 +155,24 @@ export function DetailPanel({
                   {c.location}
                 </span>
               )}
+              {c.remote && c.remote !== '—' && (
+                <span className="inline-flex items-center gap-1">
+                  <Home className="w-3.5 h-3.5" />
+                  {c.remote}
+                </span>
+              )}
+              {c.contract && c.contract !== '—' && (
+                <span className="inline-flex items-center gap-1">
+                  <Briefcase className="w-3.5 h-3.5" />
+                  {c.contract}
+                </span>
+              )}
+              {c.seniority && c.seniority !== '—' && (
+                <span className="inline-flex items-center gap-1">
+                  <Award className="w-3.5 h-3.5" />
+                  {c.seniority}
+                </span>
+              )}
               {c.url && (
                 <a
                   href={c.url}
@@ -193,6 +212,17 @@ export function DetailPanel({
               ))}
             </div>
           </div>
+
+          {/* Entreprise */}
+          {c.companyInfo && (
+            <div>
+              <div className="text-xs font-semibold text-[var(--muted)] uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                <Building2 className="w-3.5 h-3.5" />
+                Entreprise
+              </div>
+              <p className="text-sm text-[var(--muted)] leading-relaxed">{c.companyInfo}</p>
+            </div>
+          )}
 
           {/* Description */}
           <div>

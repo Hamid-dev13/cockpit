@@ -9,13 +9,15 @@ Le principe : ce n'est pas un tableur de plus. L'application met en avant ce qu'
 - Suivi des candidatures par statut : Wishlist, Postule, Entretien, Offre, Refuse.
 - Radar de momentum : chaque candidature refroidit avec l'inactivite (vert vers rouge), pour reperer le risque de ghosting.
 - Zone "Aujourd'hui" : actions prioritaires mises en avant (entretien a preparer, relance recommandee).
-- Copilote IA (raccourci Cmd/Ctrl+K) : questions en langage naturel sur le pipeline.
-- Coller une offre : extraction automatique des informations (entreprise, poste, stack, remuneration, localisation) depuis un texte ou une URL publique.
-- Saisie manuelle : pour les candidatures spontanees, avec nature (offre / spontanee / reseau) et canal (email / telephone / formulaire / LinkedIn / autre).
+- Copilote IA agentique (raccourci Cmd/Ctrl+K) : conversation en langage naturel sur tes candidatures, avec memoire des echanges precedents. Il repond en francais simple (sans jargon) et peut **agir** : changer un statut, marquer une relance, ajouter une note, creer une candidature. Chaque action s'execute immediatement et reste **annulable** (bouton "Annuler"). Sa priorisation des relances s'aligne sur le radar de momentum.
+- Coller une offre : extraction automatique des informations (entreprise, poste, stack, remuneration, localisation, type de contrat, teletravail, seniorite, infos entreprise) depuis un texte ou une URL. Le scraping passe par un reader externe qui rend le JavaScript (gere les pages dynamiques et une partie des anti-bot). Les liens de **site d'entreprise** sont detectes et orientent vers une candidature spontanee.
+- Apercu editable avant creation : l'IA pre-remplit un formulaire, tu corriges chaque champ, puis tu valides.
+- Saisie manuelle : candidatures spontanees en un clic (boutons de nature offre / spontanee / reseau) et canal (email / telephone / formulaire / LinkedIn / autre).
 - Actions IA par candidature : rediger une relance, preparer un entretien, resumer l'offre.
 - Description du poste editable et journal de notes par candidature.
 - Theme clair par defaut, bascule en theme sombre.
 - Authentification multi-utilisateur : inscription / connexion, sessions par tokens (access + refresh rotatif), candidatures privees par compte, accueil personnalise au prenom.
+- Garde-fous IA : sorties structurees validees (zod) avec relance auto, et rate-limiting par utilisateur sur la route IA.
 
 ## Stack technique
 
@@ -23,7 +25,8 @@ Le principe : ce n'est pas un tableur de plus. L'application met en avant ce qu'
 - TypeScript
 - Tailwind CSS
 - Prisma ORM avec PostgreSQL
-- API Mistral pour les fonctionnalites IA
+- API Mistral pour les fonctionnalites IA (function calling pour le copilote agentique)
+- zod (validation des sorties IA structurees)
 - lucide-react (icones), next-themes (theme clair/sombre)
 - Authentification maison : jose (JWT) et bcryptjs (hash des mots de passe)
 - Docker et Docker Compose (dev et prod)
@@ -38,7 +41,7 @@ app/
   globals.css                           Variables de theme et styles de base
   api/
     auth/                               Inscription, connexion, refresh, me, logout
-    ai/route.ts                         IA : extraction, copilote, redaction
+    ai/route.ts                         IA : extraction, copilote agentique (outils), redaction, undo
     candidatures/route.ts               Liste et creation
     candidatures/[id]/route.ts          Mise a jour et suppression
 
@@ -49,7 +52,9 @@ lib/
   format.ts                             Helpers d'affichage
   api.ts                                Appels HTTP cote client (refresh auto sur 401)
   db.ts                                 Client Prisma et serialisation
-  mistral.ts                            Appel a l'API Mistral
+  mistral.ts                            API Mistral : appel simple, JSON valide, boucle de tool-calling
+  ai-schemas.ts                         Schemas zod des sorties IA (extraction, copilote)
+  rate-limit.ts                         Limiteur de requetes en memoire (par utilisateur)
   auth.ts                               Tokens (JWT + refresh rotatif), hash, cookies
 
 hooks/
@@ -61,10 +66,22 @@ components/
   auth/                                 AuthGate, AuthScreen (connexion / inscription)
 
 prisma/
-  schema.prisma                         Schema de la base (User, RefreshToken, Candidature)
+  schema.prisma                         Schema de la base (User, RefreshToken, Candidature, Comment)
 ```
 
 Principe : `lib/` est pur (sans React), les hooks portent la logique d'etat, et les composants ne font que du rendu.
+
+## Copilote IA (agentique)
+
+Le copilote (`Cmd/Ctrl+K`) n'est pas qu'un repondeur : il peut agir sur les candidatures via le *function calling* de Mistral.
+
+- **Boucle d'outils** (`lib/mistral.ts`, `runToolLoop`) : le modele demande un outil, le serveur l'execute (scope a l'utilisateur), reinjecte le resultat, et boucle jusqu'a une reponse. Tolerant aux erreurs (outil inconnu, args invalides) et borne en iterations.
+- **Outils de lecture** : `details_candidature`, `mettre_en_avant_candidatures` (surligne les candidatures citees sous la reponse).
+- **Outils d'action** (s'executent immediatement) : `changer_statut`, `marquer_relance`, `ajouter_note`, `creer_candidature`. Le copilote n'agit que sur demande explicite.
+- **Annulation** : chaque action renvoie de quoi la reverser ; l'action `undo` de `/api/ai` restaure l'etat precedent (statut, date de relance, suppression de la note ou de la candidature creee).
+- **Memoire** : la conversation est multi-tours (les questions de suivi tiennent compte des echanges precedents).
+- **Ton** : le modele recoit des libelles francais (pas les cles techniques) et a pour consigne de repondre simplement, sans jargon ni identifiants internes.
+- **Garde-fous** : sorties structurees validees par zod avec relance auto, apercu du pipeline tronque au-dela d'un plafond, et rate-limiting par utilisateur.
 
 ## Prerequis
 
@@ -92,6 +109,8 @@ npm run dev                       # http://localhost:3000
 | `MISTRAL_MODEL`    | `.env.local` | Optionnel. Defaut : `mistral-small-latest`.             |
 | `READER_URL`       | `.env.local` | Optionnel. Reader externe pour scraper les URL d'offres (rend le JS, anti-bot). Defaut : `https://r.jina.ai/`. `""` pour desactiver. |
 | `JINA_API_KEY`     | `.env.local` | Optionnel. Cle Jina pour de meilleures limites de taux du reader. |
+| `AI_RATELIMIT_PER_MIN` | runtime  | Optionnel. Requetes IA max par utilisateur et par minute (defaut 30). |
+| `AI_MAX_PIPELINE`  | runtime      | Optionnel. Candidatures max envoyees au copilote (defaut 100). |
 | `DATABASE_URL`     | `.env`       | Connexion PostgreSQL : `postgresql://user:pass@host:5432/db`. |
 | `AUTH_SECRET`      | `.env.local` | Secret de signature des JWT. Generer : `openssl rand -hex 32`. |
 | `ALLOW_REGISTRATION` | runtime    | `true` pour autoriser la creation de comptes. Absent = inscriptions fermees. |
@@ -159,7 +178,7 @@ Toutes les routes ci-dessous, hormis `register` et `login`, exigent une session 
 | POST    | `/api/candidatures`       | Creation d'une candidature                        |
 | PATCH   | `/api/candidatures/[id]`  | Mise a jour (statut, champs, ajout de note)       |
 | DELETE  | `/api/candidatures/[id]`  | Suppression                                       |
-| POST    | `/api/ai`                 | IA : `extract`, `copilot`, `draft`                |
+| POST    | `/api/ai`                 | IA : `extract` (offre/site), `copilot` (agentique, multi-tours), `draft`, `undo` (annule une action du copilote). Rate-limite par utilisateur. |
 
 ## Scripts npm
 

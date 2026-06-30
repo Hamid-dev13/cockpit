@@ -17,8 +17,7 @@ import { ManualModal } from './ManualModal'
 import { SettingsModal } from './SettingsModal'
 
 export function Cockpit() {
-  const { cards, loading, toast, flash, reload, setStatus, addNote, patch, createFromExtract, createManual, remove } =
-    useCandidatures()
+  const { cards, loading, toast, flash, reload, setStatus, addNote, patch, createManual, remove } = useCandidatures()
 
   const [mounted, setMounted] = useState(false)
   const [fStatus, setFStatus] = useState('all')
@@ -125,8 +124,8 @@ export function Cockpit() {
       {pasteOpen && (
         <PasteModal
           onClose={() => setPasteOpen(false)}
-          onCreate={async (g, raw) => {
-            const created = await createFromExtract(g, raw)
+          onCreate={async (body) => {
+            const created = await createManual(body)
             setPasteOpen(false)
             setPanelId(created.id)
           }}

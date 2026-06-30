@@ -4,7 +4,7 @@ import { getAuth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 
-const FIELDS = ['company', 'role', 'status', 'kind', 'channel', 'salary', 'location', 'url', 'description'] as const
+const FIELDS = ['company', 'role', 'status', 'kind', 'channel', 'salary', 'location', 'contract', 'remote', 'seniority', 'companyInfo', 'url', 'description'] as const
 
 /** Verifie que la candidature appartient bien a l'utilisateur courant. */
 async function ownedBy(id: number, userId: number) {

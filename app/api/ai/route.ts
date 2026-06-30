@@ -3,6 +3,7 @@ import { mistral, mistralJson, mistralWithTools, type ToolSpec } from '@/lib/mis
 import { ExtractSchema } from '@/lib/ai-schemas'
 import { ORDER, STATUS } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
+import { rateLimit } from '@/lib/rate-limit'
 import type { Status } from '@/lib/types'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
@@ -101,6 +102,23 @@ async function fetchPageText(url: string): Promise<string | null> {
   return (await fetchViaReader(url)) ?? (await fetchRaw(url))
 }
 
+/**
+ * Heuristique : distingue une page d'offre d'un site d'entreprise.
+ * Un chemin contenant des mots cles d'offre ou profond -> offre ; une racine
+ * de domaine (peu/pas de chemin) -> site d'entreprise.
+ */
+function classifyUrl(raw: string): 'offer' | 'company' {
+  try {
+    const u = new URL(raw)
+    const offerRe = /(jobs?|offre|emploi|career|carriere|vacanc|recrut|hiring|position|stelle|apply|candidat|job[-_])/i
+    if (offerRe.test(u.pathname) || offerRe.test(u.search)) return 'offer'
+    const segments = u.pathname.split('/').filter(Boolean)
+    return segments.length === 0 ? 'company' : 'offer'
+  } catch {
+    return 'offer'
+  }
+}
+
 export async function POST(req: Request) {
   const auth = await getAuth()
   if (!auth) return NextResponse.json({ error: 'Non authentifié.' }, { status: 401 })
@@ -113,6 +131,16 @@ export async function POST(req: Request) {
   }
 
   const { action } = body
+
+  // Rate-limiting par utilisateur (protege contre les abus / couts IA).
+  const limit = Number(process.env.AI_RATELIMIT_PER_MIN) || 30
+  const rl = rateLimit(`ai:${auth.id}`, limit, 60_000)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `Trop de requêtes. Réessaie dans ${rl.retryAfter}s.` },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
 
   try {
     // ── Annulation d'une action du copilote (undo) ──
@@ -162,19 +190,38 @@ export async function POST(req: Request) {
         .map((m: any) => ({ role: m.role, content: m.content }))
         .slice(-16)
       const list: any[] = Array.isArray(cards) ? cards : []
-      const pipeline = list.map((c) => {
+      // On envoie au modele des libelles FRANCAIS (pas les cles techniques) pour
+      // qu'il s'exprime naturellement. La cle brute reste pour le tri interne.
+      const fullPipeline = list.map((c) => {
         const m = momentum({ ...c, last: Number(c.last) })
         return {
           id: c.id,
-          company: c.company,
-          role: c.role,
-          status: c.status,
+          entreprise: c.company,
+          poste: c.role,
+          statut: STATUS[c.status as Status]?.label ?? c.status,
           joursInactif: Math.floor((Date.now() - Number(c.last)) / 86400000),
-          // Meme radar de ghosting que l'UI : ok | warm | cool | cold (null si offer/rejected).
-          momentum: m?.risk ?? null,
-          momentumLabel: m?.label ?? null,
+          // Libelle francais du radar de ghosting (ex: "Ghosting · J+12"), null si offre/refuse.
+          alerte: m?.label ?? null,
+          _status: c.status as string,
+          _risk: m?.risk ?? null,
         }
       })
+      // Troncature : au-dela du plafond, on garde les plus pertinentes (statuts
+      // actifs d'abord, puis les plus inactives) pour borner cout et latence.
+      const MAX_PIPELINE = Number(process.env.AI_MAX_PIPELINE) || 100
+      const truncated = fullPipeline.length > MAX_PIPELINE
+      const ACTIVE = new Set(['applied', 'interview'])
+      const ranked = truncated
+        ? [...fullPipeline]
+            .sort((a, b) => {
+              const aw = ACTIVE.has(a._status) ? 1 : 0
+              const bw = ACTIVE.has(b._status) ? 1 : 0
+              return bw - aw || b.joursInactif - a.joursInactif
+            })
+            .slice(0, MAX_PIPELINE)
+        : fullPipeline
+      // On retire les champs techniques (_status/_risk) de ce qui part au modele.
+      const pipeline = ranked.map(({ _status, _risk, ...rest }) => rest)
 
       // Ids confirmes via la base (toujours affiches) et suggeres par le modele (filtres).
       const confirmed = new Set<number>()
@@ -324,23 +371,31 @@ export async function POST(req: Request) {
 
       const sys =
         `Tu es le copilote d'une application personnelle de suivi de candidatures. ${NO_EMOJI} ` +
-        `Tu disposes d'un apercu compact du pipeline (id, company, role, status, joursInactif, momentum). ` +
-        `Le champ "momentum" est le radar de ghosting affiche a l'utilisateur : ok (frais), warm (tiede), cool (refroidit), cold (ghosting), ou null (offer/rejected). ` +
-        `Statuts: wishlist, applied (postule), interview (entretien), offer (offre), rejected (refuse). ` +
-        `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (pour citer des candidatures). ` +
+        `Tu recois un apercu de ses candidatures (entreprise, poste, statut, joursInactif, alerte). ` +
+        `Le champ "alerte" est le radar de relance (ex: "Frais", "Tiede", "Refroidit", "Ghosting"), vide pour les candidatures classees. ` +
+        `EXPRIME-TOI COMME A UN AMI, en francais simple et naturel. ` +
+        `INTERDIT : tout jargon technique. N'ecris jamais "pipeline", "applied", "interview", "status", "momentum", "cold", "cardIds", ni aucun identifiant. ` +
+        `Dis plutot "tes candidatures" / "ton suivi", et nomme les candidatures par leur entreprise (et poste si besoin). ` +
+        `Utilise toujours les libelles francais des statuts : Wishlist, Postule, Entretien, Offre, Refuse. ` +
+        `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (les candidatures citees s'afficheront sous ta reponse). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
-        `N'utilise les outils d'action que si l'utilisateur demande explicitement de faire le changement ; sinon contente-toi de repondre ou de suggerer. ` +
-        `Apres une action, confirme brievement ce que tu as fait. ` +
-        `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
-        `Reponds en francais, de facon concise et actionnable. ` +
+        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, Entretien=interview, Offre=offer, Refuse=rejected. ` +
+        `N'utilise les outils d'action que si l'utilisateur demande explicitement le changement ; sinon contente-toi de repondre ou suggerer. ` +
+        `Apres une action, confirme en une phrase simple (ex: "C'est fait, Acme est passe en Entretien."). ` +
+        `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites (cet appel est interne, ne mentionne pas les id a l'utilisateur). ` +
         `Tu peux recevoir plusieurs tours de conversation : tiens compte des messages precedents pour les questions de suivi. ` +
-        `Pour les RELANCES, appuie-toi sur le momentum : priorise cold puis cool, en statut applied ou interview ; ignore offer et rejected. A momentum egal, departage par joursInactif.`
+        `Pour les RELANCES, priorise celles en alerte "Ghosting" puis "Refroidit", au statut Postule ou Entretien ; ignore Offre et Refuse. A alerte egale, departage par joursInactif.`
 
       const { answer } = await mistralWithTools(
         [
           {
             role: 'system',
-            content: `${sys}\n\nDate actuelle (ms): ${Date.now()}\nApercu du pipeline (a jour):\n${JSON.stringify(pipeline)}`,
+            content:
+              `${sys}\n\nDate actuelle (ms): ${Date.now()}\n` +
+              (truncated
+                ? `Apercu PARTIEL de ses candidatures (${pipeline.length} sur ${fullPipeline.length}, les plus pertinentes) :\n`
+                : `Apercu de ses candidatures (a jour) :\n`) +
+              JSON.stringify(pipeline),
           },
           ...history,
         ],
@@ -360,6 +415,7 @@ export async function POST(req: Request) {
       const { raw } = body
       let source = String(raw || '').trim()
       const isUrl = /^https?:\/\//i.test(source)
+      const urlType = isUrl ? classifyUrl(source) : null
       let fetchedOk = false
       if (isUrl) {
         const page = await fetchPageText(source)
@@ -368,22 +424,32 @@ export async function POST(req: Request) {
           fetchedOk = true
         }
       }
+      const context =
+        urlType === 'company'
+          ? `Le contenu provient du SITE d'une entreprise (page corporate, pas une offre precise). ` +
+            `Concentre-toi sur companyInfo (secteur, taille, activite, stack technique si mentionnee). ` +
+            `role/salary/contract sont probablement absents : mets "—".`
+          : `Le contenu est une offre d'emploi.`
       const parsed = await mistralJson(
         [
           {
             role: 'system',
             content:
-              `Tu extrais les informations clés d'une offre d'emploi. ${NO_EMOJI} ` +
-              `Renvoie STRICTEMENT un JSON {"company": string, "role": string, "salary": string, "stack": string[], "location": string}. ` +
-              `Si une info est absente, mets "—" (ou [] pour stack). ` +
-              `salary au format court ex "65–80k€". location ex "Remote", "Paris".`,
+              `Tu extrais les informations clés d'une offre d'emploi ou d'une page d'entreprise. ${NO_EMOJI} ${context} ` +
+              `Renvoie STRICTEMENT un JSON {"company": string, "role": string, "salary": string, "stack": string[], "location": string, "contract": string, "remote": string, "seniority": string, "companyInfo": string}. ` +
+              `Si une info est absente, mets "—" (ou [] pour stack, "" pour companyInfo). ` +
+              `salary au format court ex "65–80k€". location ex "Paris", "Lyon". ` +
+              `contract: type de contrat (CDI, CDD, Freelance, Stage, Alternance…). ` +
+              `remote: "Remote", "Hybride" ou "Sur site". ` +
+              `seniority: niveau attendu (Junior, Confirmé, Senior, Lead…). ` +
+              `companyInfo: une phrase sur l'entreprise (secteur, taille, activité).`,
           },
           { role: 'user', content: source.slice(0, 8000) },
         ],
         ExtractSchema,
       )
       const description = fetchedOk || !isUrl ? source.slice(0, 5000) : ''
-      return NextResponse.json({ ...parsed, _fetched: fetchedOk, description })
+      return NextResponse.json({ ...parsed, _fetched: fetchedOk, _urlType: urlType, description })
     }
 
     // ── Rédaction : relance / prépa entretien / résumé d'offre ──

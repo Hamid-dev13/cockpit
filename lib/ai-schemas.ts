@@ -16,6 +16,10 @@ export const ExtractSchema = z.object({
   salary: optStr(),
   stack: z.array(z.coerce.string()).catch([]),
   location: optStr(),
+  contract: optStr(),
+  remote: optStr(),
+  seniority: optStr(),
+  companyInfo: optStr(''),
 })
 export type ExtractResult = z.infer<typeof ExtractSchema>
 
