@@ -374,6 +374,8 @@ export async function POST(req: Request) {
         `N'utilise les outils d'action que si l'utilisateur demande explicitement de faire le changement ; sinon contente-toi de repondre ou de suggerer. ` +
         `Apres une action, confirme brievement ce que tu as fait. ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites. ` +
+        `Ne mentionne JAMAIS les id internes dans ta reponse (ni "id 9", ni "IDs 9 et 10", ni "ci-dessus") : ` +
+        `designe toujours une candidature par son entreprise (et son poste si besoin). Les id servent uniquement aux outils. ` +
         `Reponds en francais, de facon concise et actionnable. ` +
         `Tu peux recevoir plusieurs tours de conversation : tiens compte des messages precedents pour les questions de suivi. ` +
         `Pour les RELANCES, appuie-toi sur le momentum : priorise cold puis cool, en statut applied ou interview ; ignore offer et rejected. A momentum egal, departage par joursInactif.`
