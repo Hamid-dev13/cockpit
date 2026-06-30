@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  X, Banknote, MapPin, Link as LinkIcon, Sparkles, Mail, Target, FileText, Loader2, CornerDownLeft,
+  X, Banknote, MapPin, Link as LinkIcon, Sparkles, Mail, Target, FileText, Loader2, CornerDownLeft, Trash2,
 } from 'lucide-react'
 import type { Card, Status } from '@/lib/types'
 import { ORDER, STATUS, KIND } from '@/lib/status'
@@ -16,18 +16,21 @@ export function DetailPanel({
   onPatch,
   onSetStatus,
   onAddNote,
+  onDelete,
 }: {
   c: Card
   onClose: () => void
   onPatch: (body: Record<string, unknown>, optimistic?: Partial<Card>) => Promise<Card | void>
   onSetStatus: (s: Status) => void
   onAddNote: (txt: string) => void
+  onDelete: () => void
 }) {
   const [out, setOut] = useState('')
   const [load, setLoad] = useState(false)
   const [note, setNote] = useState('')
   const [desc, setDesc] = useState(c.description)
   const [savingDesc, setSavingDesc] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   async function draft(kind: string) {
     setLoad(true)
@@ -241,6 +244,35 @@ export function DetailPanel({
                 <CornerDownLeft className="w-4 h-4" />
               </button>
             </div>
+          </div>
+
+          {/* Supprimer */}
+          <div className="pt-3 border-t">
+            {confirmDelete ? (
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-[var(--muted)] flex-1">Supprimer définitivement ?</span>
+                <button
+                  onClick={onDelete}
+                  className="text-white bg-red-500 hover:bg-red-600 rounded-md px-3 h-8 text-xs font-medium"
+                >
+                  Confirmer
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  className="text-[var(--muted)] hover:text-[var(--fg)] text-xs px-2 h-8"
+                >
+                  Annuler
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="text-xs text-red-500 hover:text-red-600 inline-flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Supprimer cette candidature
+              </button>
+            )}
           </div>
         </div>
       </aside>

@@ -15,7 +15,7 @@ import { PasteModal } from './PasteModal'
 import { ManualModal } from './ManualModal'
 
 export function Cockpit() {
-  const { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual } = useCandidatures()
+  const { cards, loading, toast, setStatus, addNote, patch, createFromExtract, createManual, remove } = useCandidatures()
 
   const [mounted, setMounted] = useState(false)
   const [fStatus, setFStatus] = useState('all')
@@ -92,6 +92,10 @@ export function Cockpit() {
           onPatch={(body, optimistic) => patch(card.id, body, optimistic)}
           onSetStatus={(s) => setStatus(card.id, s)}
           onAddNote={(txt) => addNote(card.id, txt)}
+          onDelete={() => {
+            remove(card.id)
+            setPanelId(null)
+          }}
         />
       )}
 
