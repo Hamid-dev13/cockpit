@@ -343,7 +343,7 @@ export async function POST(req: Request) {
             properties: {
               company: { type: 'string' },
               role: { type: 'string' },
-              kind: { type: 'string', enum: KINDS, description: 'offer, spontaneous ou network' },
+              kind: { type: 'string', enum: KINDS, description: "Type : 'offer' (offre classique), 'spontaneous' (candidature spontanee), 'network' (via reseau)" },
               statut: { type: 'string', enum: ORDER },
             },
             required: ['company'],
@@ -377,6 +377,7 @@ export async function POST(req: Request) {
         `INTERDIT : tout jargon technique. N'ecris jamais "pipeline", "applied", "interview", "status", "momentum", "cold", "cardIds", ni aucun identifiant. ` +
         `Dis plutot "tes candidatures" / "ton suivi", et nomme les candidatures par leur entreprise (et poste si besoin). ` +
         `Utilise toujours les libelles francais des statuts : Wishlist, Postule, Entretien, Offre, Refuse. ` +
+        `Pour les types de candidature, dis toujours "candidature spontanee" (jamais "spontaneous application"). ` +
         `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (les candidatures citees s'afficheront sous ta reponse). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
         `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, Entretien=interview, Offre=offer, Refuse=rejected. ` +
