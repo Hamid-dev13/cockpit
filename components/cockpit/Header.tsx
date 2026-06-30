@@ -10,6 +10,7 @@ export function Header({
   onPaste,
   onManual,
   onSpontaneous,
+  onSettings,
 }: {
   onCopilot: () => void
   onPaste: () => void
