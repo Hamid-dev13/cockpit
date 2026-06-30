@@ -1,10 +1,22 @@
 import { NextResponse } from 'next/server'
 import { mistral } from '@/lib/mistral'
 import { getAuth } from '@/lib/auth'
+import { prisma } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
 const NO_EMOJI = "N'utilise jamais d'emoji."
+
+/** Delai ecoule depuis une date, en francais naturel (pour les relances). */
+function humanAgo(date: Date): string {
+  const days = Math.floor((Date.now() - new Date(date).getTime()) / 86400000)
+  if (days <= 1) return 'il y a quelques jours'
+  if (days < 7) return `il y a ${days} jours`
+  if (days < 14) return 'il y a une semaine'
+  if (days < 35) return `il y a ${Math.round(days / 7)} semaines`
+  if (days < 60) return 'il y a environ un mois'
+  return `il y a ${Math.round(days / 30)} mois`
+}
 
 /** Télécharge une page et en extrait le texte brut (pour les offres collées sous forme d'URL). */
 async function fetchPageText(url: string): Promise<string | null> {
@@ -118,9 +130,29 @@ export async function POST(req: Request) {
     // ── Rédaction : relance / prépa entretien / résumé d'offre ──
     if (action === 'draft') {
       const { kind, card } = body
+
+      if (kind === 'relance') {
+        // Delai reel depuis le depot de la candidature (date de creation en base).
+        let timing = 'recemment'
+        if (card?.id) {
+          const dbCard = await prisma.candidature.findFirst({ where: { id: Number(card.id), userId: auth.id } })
+          if (dbCard) timing = humanAgo(dbCard.createdAt)
+        }
+        const sys =
+          `Tu aides un chercheur d'emploi a rediger un email de relance court, professionnel et chaleureux. ${NO_EMOJI} ` +
+          `Donne un objet et un corps. ` +
+          `Signe avec le vrai nom du candidat : ${auth.firstName} ${auth.lastName}, et son email : ${auth.email}. ` +
+          `N'utilise AUCUN crochet ni texte a remplir nulle part (ni pour le candidat, ni pour le destinataire) et n'invente pas de numero de telephone. ` +
+          `Pour la salutation, le nom du recruteur est inconnu : ecris simplement "Bonjour," (sans crochet, sans nom invente). ` +
+          `La candidature a ete deposee ${timing} : formule la temporalite ainsi (ex: "${timing}").`
+        const text = await mistral([
+          { role: 'system', content: sys },
+          { role: 'user', content: JSON.stringify(card) },
+        ])
+        return NextResponse.json({ text })
+      }
+
       const prompts: Record<string, string> = {
-        relance:
-          `Rédige un email de relance court, professionnel et chaleureux pour la candidature ci-dessous. Donne un objet et un corps. ${NO_EMOJI}`,
         prep:
           `Liste 4 à 6 questions d'entretien probables pour ce poste, chacune avec un conseil de préparation (méthode STAR si pertinent). ${NO_EMOJI}`,
         resume:

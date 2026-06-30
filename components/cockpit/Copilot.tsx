@@ -6,6 +6,7 @@ import type { Card } from '@/lib/types'
 import { STATUS } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
 import { ai } from '@/lib/api'
+import { useAuth } from '@/hooks/useAuth'
 import { RichText } from './RichText'
 
 export function Copilot({
@@ -17,6 +18,7 @@ export function Copilot({
   onClose: () => void
   onOpen: (id: number) => void
 }) {
+  const { user } = useAuth()
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
   const [res, setRes] = useState<{ answer: string; cardIds: number[] } | null>(null)
@@ -72,6 +74,10 @@ export function Copilot({
           {err && <div className="p-4 text-sm text-red-500">Erreur : {err}</div>}
           {!loading && !res && !err && (
             <>
+              <div className="px-3 pt-2 pb-1 text-sm">
+                Salut <span className="font-semibold">{user?.firstName}</span> ! Comment je peux t&apos;aider
+                aujourd&apos;hui&nbsp;?
+              </div>
               <div className="text-[11px] text-[var(--muted)] px-2 py-1.5">Suggestions</div>
               {suggestions.map((s) => (
                 <button

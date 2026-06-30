@@ -79,7 +79,7 @@ export function Cockpit() {
           </div>
 
           <div className="mt-4 text-[11px] text-[var(--muted)] text-center">
-            {cards.length} candidatures · {staleCount} en perte de momentum · BDD SQLite · IA Mistral
+            {cards.length} candidatures · {staleCount} en perte de momentum
           </div>
         </div>
       </main>
