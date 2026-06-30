@@ -18,10 +18,54 @@ function humanAgo(date: Date): string {
   return `il y a ${Math.round(days / 30)} mois`
 }
 
-/** Télécharge une page et en extrait le texte brut (pour les offres collées sous forme d'URL). */
-async function fetchPageText(url: string): Promise<string | null> {
+const FETCH_TIMEOUT = 12000
+const MIN_TEXT = 200
+const MAX_TEXT = 8000
+
+/** Nettoie du HTML brut en texte lisible. */
+function stripHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<\/(p|div|li|br|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&[a-z]+;/gi, ' ')
+    .replace(/[ \t]+/g, ' ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+/**
+ * Lit une page via un "reader" externe qui rend le JS et renvoie du texte propre
+ * (defaut: Jina AI Reader). Gere les sites rendus cote client et une partie des
+ * protections anti-bot, la ou un simple fetch echoue.
+ * Configurable par env: READER_URL (prefixe, "" pour desactiver), JINA_API_KEY (optionnel).
+ */
+async function fetchViaReader(url: string): Promise<string | null> {
+  const prefix = process.env.READER_URL ?? 'https://r.jina.ai/'
+  if (!prefix) return null
   const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), 8000)
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT)
+  try {
+    const headers: Record<string, string> = { Accept: 'text/plain' }
+    if (process.env.JINA_API_KEY) headers.Authorization = `Bearer ${process.env.JINA_API_KEY}`
+    const res = await fetch(prefix + url, { headers, redirect: 'follow', signal: ctrl.signal })
+    if (!res.ok) return null
+    const text = (await res.text()).trim()
+    return text.length > MIN_TEXT ? text.slice(0, MAX_TEXT) : null
+  } catch {
+    return null
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** Fetch direct + nettoyage HTML par regex. Fallback quand le reader echoue. */
+async function fetchRaw(url: string): Promise<string | null> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT)
   try {
     const res = await fetch(url, {
       headers: {
@@ -34,24 +78,21 @@ async function fetchPageText(url: string): Promise<string | null> {
       signal: ctrl.signal,
     })
     if (!res.ok) return null
-    const html = await res.text()
-    const text = html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<\/(p|div|li|br|h[1-6])>/gi, '\n')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&amp;/gi, '&')
-      .replace(/&[a-z]+;/gi, ' ')
-      .replace(/[ \t]+/g, ' ')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim()
-    return text.length > 200 ? text.slice(0, 8000) : null
+    const text = stripHtml(await res.text())
+    return text.length > MIN_TEXT ? text.slice(0, MAX_TEXT) : null
   } catch {
     return null
   } finally {
     clearTimeout(timer)
   }
+}
+
+/**
+ * Recupere le texte d'une page (pour les offres collees sous forme d'URL).
+ * Essaie d'abord le reader externe (JS + anti-bot), puis retombe sur un fetch brut.
+ */
+async function fetchPageText(url: string): Promise<string | null> {
+  return (await fetchViaReader(url)) ?? (await fetchRaw(url))
 }
 
 export async function POST(req: Request) {

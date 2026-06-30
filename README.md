@@ -90,6 +90,8 @@ npm run dev                       # http://localhost:3000
 | ------------------ | ------------ | ------------------------------------------------------- |
 | `MISTRAL_API_KEY`  | `.env.local` | Cle API Mistral. Lue uniquement cote serveur.           |
 | `MISTRAL_MODEL`    | `.env.local` | Optionnel. Defaut : `mistral-small-latest`.             |
+| `READER_URL`       | `.env.local` | Optionnel. Reader externe pour scraper les URL d'offres (rend le JS, anti-bot). Defaut : `https://r.jina.ai/`. `""` pour desactiver. |
+| `JINA_API_KEY`     | `.env.local` | Optionnel. Cle Jina pour de meilleures limites de taux du reader. |
 | `DATABASE_URL`     | `.env`       | Connexion PostgreSQL : `postgresql://user:pass@host:5432/db`. |
 | `AUTH_SECRET`      | `.env.local` | Secret de signature des JWT. Generer : `openssl rand -hex 32`. |
 | `ALLOW_REGISTRATION` | runtime    | `true` pour autoriser la creation de comptes. Absent = inscriptions fermees. |
@@ -181,5 +183,5 @@ Toutes les routes ci-dessous, hormis `register` et `login`, exigent une session 
 
 ## Limitations connues
 
-- L'extraction depuis une URL fonctionne sur les pages publiques accessibles. Les sites qui bloquent les robots (Indeed, LinkedIn, Workday) ne sont pas lisibles : il faut alors coller le texte de l'annonce.
+- L'extraction depuis une URL passe par un reader externe (Jina) qui rend le JS et contourne une partie des protections anti-bot. Les pages derriere authentification (LinkedIn connecte) ou les anti-bot agressifs restent illisibles : il faut alors coller le texte de l'annonce.
 - La base PostgreSQL doit etre accessible par l'application (instance managee Coolify, ou conteneurisee via le compose).
