@@ -14,7 +14,7 @@ import { DetailPanel } from './DetailPanel'
 import { Copilot } from './Copilot'
 import { PasteModal } from './PasteModal'
 import { ManualModal } from './ManualModal'
-import { SettingsModal } from './SettingsModal'
+import { SettingsView } from './SettingsModal'
 
 export function Cockpit() {
   const { cards, loading, toast, flash, reload, setStatus, addNote, patch, createManual, remove } = useCandidatures()
@@ -26,7 +26,7 @@ export function Cockpit() {
   const [cmdOpen, setCmdOpen] = useState(false)
   const [pasteOpen, setPasteOpen] = useState(false)
   const [manualKind, setManualKind] = useState<Kind | null>(null)
-  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [view, setView] = useState<'dashboard' | 'settings'>('dashboard')
 
   useEffect(() => setMounted(true), [])
 
@@ -59,6 +59,19 @@ export function Cockpit() {
     return m && (m.risk === 'cool' || m.risk === 'cold')
   }).length
 
+  if (view === 'settings') {
+    return (
+      <>
+        <SettingsView onBack={() => setView('dashboard')} />
+        {toast && (
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="glass border rounded-xl px-4 py-2.5 text-sm shadow-2xl animate-fadein">{toast}</div>
+          </div>
+        )}
+      </>
+    )
+  }
+
   return (
     <div className="h-screen flex flex-col">
       <Header
@@ -66,7 +79,7 @@ export function Cockpit() {
         onPaste={() => setPasteOpen(true)}
         onManual={() => setManualKind('offer')}
         onSpontaneous={() => setManualKind('spontaneous')}
-        onSettings={() => setSettingsOpen(true)}
+        onSettings={() => setView('settings')}
       />
 
       <main className="flex-1 overflow-y-auto px-4 sm:px-6 py-6">
@@ -143,8 +156,6 @@ export function Cockpit() {
           }}
         />
       )}
-
-      {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
 
       {toast && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">

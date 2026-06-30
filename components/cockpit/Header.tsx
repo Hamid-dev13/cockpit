@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
-import { Plus, Bot, Sun, Moon, Sparkles, PenLine, Send, LogOut, Settings } from 'lucide-react'
+import { Plus, Bot, Sun, Moon, Sparkles, PenLine, Send, Settings } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 
 export function Header({
@@ -20,7 +20,7 @@ export function Header({
 }) {
   const [addMenu, setAddMenu] = useState(false)
   const { resolvedTheme, setTheme } = useTheme()
-  const { user, logout } = useAuth()
+  const { user } = useAuth()
 
   return (
     <header className="flex items-center gap-3 px-4 sm:px-6 h-16 border-b shrink-0">
@@ -66,14 +66,6 @@ export function Header({
         title="Paramètres"
       >
         <Settings className="w-4 h-4" />
-      </button>
-
-      <button
-        onClick={logout}
-        className="grid place-items-center w-9 h-9 rounded-lg border bg-[var(--surface)] hover:bg-[var(--surface-2)] transition"
-        title="Se déconnecter"
-      >
-        <LogOut className="w-4 h-4" />
       </button>
 
       <div className="relative">
