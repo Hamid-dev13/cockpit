@@ -2,9 +2,12 @@
 
 import { useState } from 'react'
 import { Sparkles, Loader2, Plus, ArrowLeft, AlertTriangle } from 'lucide-react'
+import type { Kind } from '@/lib/types'
+import { KIND } from '@/lib/status'
 import { ai } from '@/lib/api'
 
 type Phase = 'paste' | 'review'
+const KIND_ORDER: Kind[] = ['offer', 'spontaneous', 'network']
 
 const field =
   'w-full bg-[var(--surface)] border rounded-lg px-3 h-9 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--accent)]'
@@ -22,8 +25,10 @@ export function PasteModal({
   const [saving, setSaving] = useState(false)
   const [err, setErr] = useState('')
   const [unreadableUrl, setUnreadableUrl] = useState(false)
+  const [detectedCompanySite, setDetectedCompanySite] = useState(false)
 
   // Champs editables, pre-remplis par l'extraction.
+  const [kind, setKind] = useState<Kind>('offer')
   const [company, setCompany] = useState('')
   const [role, setRole] = useState('')
   const [salary, setSalary] = useState('')
@@ -57,6 +62,10 @@ export function PasteModal({
       const wasUrl = raw.trim().startsWith('http')
       setUrl(wasUrl ? raw.trim().split(/\s/)[0] : '')
       setUnreadableUrl(wasUrl && g._fetched === false)
+      // Site d'entreprise detecte -> candidature spontanee par defaut.
+      const isCompanySite = g._urlType === 'company'
+      setDetectedCompanySite(isCompanySite)
+      setKind(isCompanySite ? 'spontaneous' : 'offer')
       setPhase('review')
     } catch (e: any) {
       setErr(e.message)
@@ -74,7 +83,7 @@ export function PasteModal({
     setErr('')
     try {
       await onCreate({
-        kind: 'offer',
+        kind,
         channel: 'form',
         company: company.trim(),
         role: role.trim(),
@@ -151,7 +160,37 @@ export function PasteModal({
                 Page non lisible : les champs sont vides, complète-les à la main.
               </div>
             )}
+            {detectedCompanySite && (
+              <div className="mb-3 text-[12px] text-[var(--muted)]">
+                Lien détecté comme <span className="font-medium text-[var(--fg)]">site d&apos;entreprise</span> → nature
+                pré-réglée sur « Spontanée ».
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
+              <div className="col-span-2 text-xs text-[var(--muted)]">
+                Nature
+                <div className="mt-1 grid grid-cols-3 gap-1.5">
+                  {KIND_ORDER.map((k) => {
+                    const active = kind === k
+                    return (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setKind(k)}
+                        aria-pressed={active}
+                        className="h-9 rounded-lg border text-sm font-medium transition"
+                        style={
+                          active
+                            ? { borderColor: 'var(--accent)', background: 'color-mix(in srgb,var(--accent) 12%,transparent)', color: 'var(--fg)' }
+                            : { background: 'var(--surface)' }
+                        }
+                      >
+                        {KIND[k].label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
               <label className="text-xs text-[var(--muted)] col-span-2">
                 Entreprise *
                 <input value={company} onChange={(e) => setCompany(e.target.value)} className={field + ' mt-1'} />
