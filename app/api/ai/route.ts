@@ -3,6 +3,7 @@ import { mistral, mistralJson, mistralWithTools, type ToolSpec } from '@/lib/mis
 import { ExtractSchema } from '@/lib/ai-schemas'
 import { ORDER, STATUS } from '@/lib/status'
 import { momentum } from '@/lib/momentum'
+import { rateLimit } from '@/lib/rate-limit'
 import type { Status } from '@/lib/types'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
@@ -131,6 +132,16 @@ export async function POST(req: Request) {
 
   const { action } = body
 
+  // Rate-limiting par utilisateur (protege contre les abus / couts IA).
+  const limit = Number(process.env.AI_RATELIMIT_PER_MIN) || 30
+  const rl = rateLimit(`ai:${auth.id}`, limit, 60_000)
+  if (!rl.ok) {
+    return NextResponse.json(
+      { error: `Trop de requêtes. Réessaie dans ${rl.retryAfter}s.` },
+      { status: 429, headers: { 'Retry-After': String(rl.retryAfter) } },
+    )
+  }
+
   try {
     // ── Annulation d'une action du copilote (undo) ──
     if (action === 'undo') {
@@ -179,7 +190,7 @@ export async function POST(req: Request) {
         .map((m: any) => ({ role: m.role, content: m.content }))
         .slice(-16)
       const list: any[] = Array.isArray(cards) ? cards : []
-      const pipeline = list.map((c) => {
+      const fullPipeline = list.map((c) => {
         const m = momentum({ ...c, last: Number(c.last) })
         return {
           id: c.id,
@@ -192,6 +203,20 @@ export async function POST(req: Request) {
           momentumLabel: m?.label ?? null,
         }
       })
+      // Troncature : au-dela du plafond, on garde les plus pertinentes (statuts
+      // actifs d'abord, puis les plus inactives) pour borner cout et latence.
+      const MAX_PIPELINE = Number(process.env.AI_MAX_PIPELINE) || 100
+      const truncated = fullPipeline.length > MAX_PIPELINE
+      const ACTIVE = new Set(['applied', 'interview'])
+      const pipeline = truncated
+        ? [...fullPipeline]
+            .sort((a, b) => {
+              const aw = ACTIVE.has(a.status) ? 1 : 0
+              const bw = ACTIVE.has(b.status) ? 1 : 0
+              return bw - aw || b.joursInactif - a.joursInactif
+            })
+            .slice(0, MAX_PIPELINE)
+        : fullPipeline
 
       // Ids confirmes via la base (toujours affiches) et suggeres par le modele (filtres).
       const confirmed = new Set<number>()
@@ -357,7 +382,12 @@ export async function POST(req: Request) {
         [
           {
             role: 'system',
-            content: `${sys}\n\nDate actuelle (ms): ${Date.now()}\nApercu du pipeline (a jour):\n${JSON.stringify(pipeline)}`,
+            content:
+              `${sys}\n\nDate actuelle (ms): ${Date.now()}\n` +
+              (truncated
+                ? `Apercu PARTIEL du pipeline (${pipeline.length} sur ${fullPipeline.length} candidatures, priorise actives + inactives) :\n`
+                : `Apercu du pipeline (a jour) :\n`) +
+              JSON.stringify(pipeline),
           },
           ...history,
         ],
