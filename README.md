@@ -92,6 +92,8 @@ npm run dev                       # http://localhost:3000
 | `MISTRAL_MODEL`    | `.env.local` | Optionnel. Defaut : `mistral-small-latest`.             |
 | `READER_URL`       | `.env.local` | Optionnel. Reader externe pour scraper les URL d'offres (rend le JS, anti-bot). Defaut : `https://r.jina.ai/`. `""` pour desactiver. |
 | `JINA_API_KEY`     | `.env.local` | Optionnel. Cle Jina pour de meilleures limites de taux du reader. |
+| `AI_RATELIMIT_PER_MIN` | runtime  | Optionnel. Requetes IA max par utilisateur et par minute (defaut 30). |
+| `AI_MAX_PIPELINE`  | runtime      | Optionnel. Candidatures max envoyees au copilote (defaut 100). |
 | `DATABASE_URL`     | `.env`       | Connexion PostgreSQL : `postgresql://user:pass@host:5432/db`. |
 | `AUTH_SECRET`      | `.env.local` | Secret de signature des JWT. Generer : `openssl rand -hex 32`. |
 | `ALLOW_REGISTRATION` | runtime    | `true` pour autoriser la creation de comptes. Absent = inscriptions fermees. |
