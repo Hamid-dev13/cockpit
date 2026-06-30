@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { mistral } from '@/lib/mistral'
+import { mistral, mistralJson } from '@/lib/mistral'
+import { ExtractSchema, CopilotSchema } from '@/lib/ai-schemas'
 import { getAuth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 
@@ -112,7 +113,7 @@ export async function POST(req: Request) {
     // ── Copilote : répond à une question en langage naturel sur le pipeline ──
     if (action === 'copilot') {
       const { q, cards } = body
-      const content = await mistral(
+      const result = await mistralJson(
         [
           {
             role: 'system',
@@ -131,9 +132,12 @@ export async function POST(req: Request) {
             content: `Date actuelle (ms): ${Date.now()}\nCandidatures:\n${JSON.stringify(cards)}\n\nQuestion: ${q}`,
           },
         ],
-        { json: true },
+        CopilotSchema,
       )
-      return NextResponse.json(JSON.parse(content))
+      // Ne garde que les cardIds qui existent reellement (evite les ids hallucines).
+      const known = new Set<number>(Array.isArray(cards) ? cards.map((c: any) => Number(c.id)) : [])
+      const cardIds = result.cardIds.filter((id) => known.has(id))
+      return NextResponse.json({ answer: result.answer, cardIds })
     }
 
     // ── Auto-fill : extrait les infos clés d'une offre collée ──
@@ -149,7 +153,7 @@ export async function POST(req: Request) {
           fetchedOk = true
         }
       }
-      const content = await mistral(
+      const parsed = await mistralJson(
         [
           {
             role: 'system',
@@ -161,9 +165,8 @@ export async function POST(req: Request) {
           },
           { role: 'user', content: source.slice(0, 8000) },
         ],
-        { json: true },
+        ExtractSchema,
       )
-      const parsed = JSON.parse(content)
       const description = fetchedOk || !isUrl ? source.slice(0, 5000) : ''
       return NextResponse.json({ ...parsed, _fetched: fetchedOk, description })
     }
