@@ -210,7 +210,7 @@ export async function POST(req: Request) {
       // actifs d'abord, puis les plus inactives) pour borner cout et latence.
       const MAX_PIPELINE = Number(process.env.AI_MAX_PIPELINE) || 100
       const truncated = fullPipeline.length > MAX_PIPELINE
-      const ACTIVE = new Set(['applied', 'interview'])
+      const ACTIVE = new Set(['pending', 'interview'])
       const ranked = truncated
         ? [...fullPipeline]
             .sort((a, b) => {
@@ -279,7 +279,7 @@ export async function POST(req: Request) {
             type: 'object',
             properties: {
               id: { type: 'number' },
-              statut: { type: 'string', enum: ORDER, description: 'wishlist, applied, pending, interview, offer ou rejected' },
+              statut: { type: 'string', enum: ORDER, description: 'wishlist, pending, interview, offer ou rejected' },
             },
             required: ['id', 'statut'],
           },
@@ -374,13 +374,13 @@ export async function POST(req: Request) {
         `Tu recois un apercu de ses candidatures (entreprise, poste, statut, joursInactif, alerte). ` +
         `Le champ "alerte" est le radar de relance (ex: "Frais", "Tiede", "Refroidit", "Ghosting"), vide pour les candidatures classees. ` +
         `EXPRIME-TOI COMME A UN AMI, en francais simple et naturel. ` +
-        `INTERDIT : tout jargon technique. N'ecris jamais "pipeline", "applied", "interview", "status", "momentum", "cold", "cardIds", ni aucun identifiant. ` +
+        `INTERDIT : tout jargon technique. N'ecris jamais "pipeline", "pending", "interview", "status", "momentum", "cold", "cardIds", ni aucun identifiant. ` +
         `Dis plutot "tes candidatures" / "ton suivi", et nomme les candidatures par leur entreprise (et poste si besoin). ` +
         `Utilise toujours les libelles francais des statuts : Wishlist, Postule, Entretien, Offre, Refuse. ` +
         `Pour les types de candidature, dis toujours "candidature spontanee" (jamais "spontaneous application"). ` +
         `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (les candidatures citees s'afficheront sous ta reponse). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
-        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, En attente=pending, Entretien=interview, Offre=offer, Refuse=rejected. ` +
+        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, En attente=pending, Entretien=interview, Offre=offer, Refuse=rejected. ` +
         `N'utilise les outils d'action que si l'utilisateur demande explicitement le changement ; sinon contente-toi de repondre ou suggerer. ` +
         `Apres une action, confirme en une phrase simple (ex: "C'est fait, Acme est passe en Entretien."). ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites (cet appel est interne, ne mentionne pas les id a l'utilisateur). ` +

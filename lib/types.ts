@@ -1,4 +1,4 @@
-export type Status = 'wishlist' | 'applied' | 'pending' | 'interview' | 'offer' | 'rejected'
+export type Status = 'wishlist' | 'pending' | 'interview' | 'offer' | 'rejected'
 export type Kind = 'offer' | 'spontaneous' | 'network'
 export type Channel = 'email' | 'phone' | 'form' | 'linkedin' | 'other'
 
