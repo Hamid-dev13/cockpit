@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma, serialize } from '@/lib/db'
 import { getAuth } from '@/lib/auth'
+import { ORDER } from '@/lib/status'
 
 export const runtime = 'nodejs'
 
@@ -23,6 +24,9 @@ export async function POST(req: Request) {
   const b = await req.json()
   if (!b.company || !String(b.company).trim()) {
     return NextResponse.json({ error: "Le nom de l'entreprise est requis." }, { status: 400 })
+  }
+  if (b.status && !ORDER.includes(b.status)) {
+    return NextResponse.json({ error: 'Statut invalide.' }, { status: 400 })
   }
   const card = await prisma.candidature.create({
     data: {
