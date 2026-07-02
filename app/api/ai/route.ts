@@ -279,7 +279,7 @@ export async function POST(req: Request) {
             type: 'object',
             properties: {
               id: { type: 'number' },
-              statut: { type: 'string', enum: ORDER, description: 'wishlist, applied, interview, offer ou rejected' },
+              statut: { type: 'string', enum: ORDER, description: 'wishlist, applied, pending, interview, offer ou rejected' },
             },
             required: ['id', 'statut'],
           },
@@ -380,7 +380,7 @@ export async function POST(req: Request) {
         `Pour les types de candidature, dis toujours "candidature spontanee" (jamais "spontaneous application"). ` +
         `Outils de LECTURE: details_candidature (description/notes), mettre_en_avant_candidatures (les candidatures citees s'afficheront sous ta reponse). ` +
         `Outils d'ACTION (s'executent immediatement): changer_statut, marquer_relance, ajouter_note, creer_candidature. ` +
-        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, Entretien=interview, Offre=offer, Refuse=rejected. ` +
+        `Pour changer_statut, traduis le libelle en cle technique : Wishlist=wishlist, Postule=applied, En attente=pending, Entretien=interview, Offre=offer, Refuse=rejected. ` +
         `N'utilise les outils d'action que si l'utilisateur demande explicitement le changement ; sinon contente-toi de repondre ou suggerer. ` +
         `Apres une action, confirme en une phrase simple (ex: "C'est fait, Acme est passe en Entretien."). ` +
         `Appelle mettre_en_avant_candidatures avec les id des candidatures que tu cites (cet appel est interne, ne mentionne pas les id a l'utilisateur). ` +

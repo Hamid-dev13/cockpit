@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { prisma, serialize } from '@/lib/db'
 import { getAuth } from '@/lib/auth'
+import { ORDER } from '@/lib/status'
 
 export const runtime = 'nodejs'
 
@@ -20,6 +21,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (!(await ownedBy(id, auth.id))) return NextResponse.json({ error: 'Candidature introuvable' }, { status: 404 })
 
   const b = await req.json()
+  if (b.status && !ORDER.includes(b.status)) {
+    return NextResponse.json({ error: 'Statut invalide.' }, { status: 400 })
+  }
   const data: any = {}
   for (const k of FIELDS) if (b[k] !== undefined) data[k] = b[k]
   if (b.stack !== undefined) data.stack = Array.isArray(b.stack) ? b.stack.join(',') : b.stack
